@@ -72,6 +72,57 @@ pub struct PhotonImage {
     height: u32,
 }
 
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PlanarImage {
+    r: Vec<u8>,
+    g: Vec<u8>,
+    b: Vec<u8>,
+    a: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+impl PlanarImage {
+    pub fn from_photon_image(img: &PhotonImage) -> PlanarImage {
+        let mut r: Vec<u8> = vec![];
+        let mut g: Vec<u8> = vec![];
+        let mut b: Vec<u8> = vec![];
+        let mut a: Vec<u8> = vec![];
+
+        for i in (0..(img.width * img.height) as usize).step_by(4) {
+            r.push(img.raw_pixels[i]);
+            g.push(img.raw_pixels[i + 1]);
+            b.push(img.raw_pixels[i + 2]);
+            a.push(img.raw_pixels[i + 3]);
+        }
+        PlanarImage {
+            r,
+            g,
+            b,
+            a,
+            width: img.width,
+            height: img.height,
+        }
+    }
+
+    pub fn to_photon_image(&self) -> PhotonImage {
+        let mut raw_pixels: Vec<u8> = vec![];
+
+        for i in 0..(self.width * self.height) as usize {
+            raw_pixels.push(self.r[i]);
+            raw_pixels.push(self.g[i]);
+            raw_pixels.push(self.b[i]);
+            raw_pixels.push(self.a[i]);
+        }
+        PhotonImage {
+            raw_pixels,
+            width: self.width,
+            height: self.height,
+        }
+    }
+}
+
 #[cfg(not(feature = "enable_wasm"))]
 impl PhotonImage {
     /// Get the PhotonImage's pixels as a slice of u8s (no cloning).

@@ -60,6 +60,84 @@ pub fn monochrome(img: &mut PhotonImage, r_offset: u32, g_offset: u32, b_offset:
     }
 }
 
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
+#[target_feature(enable = "simd128")]
+pub unsafe fn monochrome_simd(
+    img: &mut PhotonImage,
+    r_offset: u32,
+    g_offset: u32,
+    b_offset: u32,
+) {
+    use core::arch::wasm32::*;
+
+    let buf = img.raw_pixels.as_mut_slice();
+    let end = buf.len();
+    let simd_end = end - (end % 16);
+
+    let byte_mask = u32x4_splat(0x0000_00ff);
+    let alpha_mask = u32x4_splat(0xff00_0000);
+    let div3 = u32x4_splat(21846); // ceil(2^16 / 3), exact for sums 0..765
+    let max = u32x4_splat(255);
+
+    let r_off = u32x4_splat(r_offset.min(255));
+    let g_off = u32x4_splat(g_offset.min(255));
+    let b_off = u32x4_splat(b_offset.min(255));
+
+    for i in (0..simd_end).step_by(16) {
+        // Interpret 4 RGBA pixels as 4 packed little-endian u32 lanes:
+        // lane = r | (g << 8) | (b << 16) | (a << 24).
+        let px = v128_load(buf.as_ptr().add(i) as *const v128);
+
+        let r = v128_and(px, byte_mask);
+        let g = v128_and(u32x4_shr(px, 8), byte_mask);
+        let b = v128_and(u32x4_shr(px, 16), byte_mask);
+
+        let sum = u32x4_add(u32x4_add(r, g), b);
+
+        // avg = floor(sum / 3), vectorized:
+        // floor(x / 3) == (x * 21846) >> 16 for x in 0..765.
+        let avg = u32x4_shr(u32x4_mul(sum, div3), 16);
+
+        let out_r = u32x4_min(u32x4_add(avg, r_off), max);
+        let out_g = u32x4_shl(u32x4_min(u32x4_add(avg, g_off), max), 8);
+        let out_b = u32x4_shl(u32x4_min(u32x4_add(avg, b_off), max), 16);
+        let out_a = v128_and(px, alpha_mask);
+
+        let out = v128_or(v128_or(out_r, out_g), v128_or(out_b, out_a));
+
+        v128_store(buf.as_mut_ptr().add(i) as *mut v128, out);
+    }
+
+    monochrome_scalar_slice(&mut buf[simd_end..], r_offset, g_offset, b_offset);
+}
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+fn monochrome_scalar_slice(buf: &mut [u8], r_offset: u32, g_offset: u32, b_offset: u32) {
+    for i in (0..buf.len()).step_by(4) {
+        let r_val = buf[i] as u32;
+        let g_val = buf[i + 1] as u32;
+        let b_val = buf[i + 2] as u32;
+        let avg = (r_val + g_val + b_val) / 3;
+
+        buf[i] = if avg + r_offset < 255 {
+            avg as u8 + r_offset as u8
+        } else {
+            255
+        };
+        buf[i + 1] = if avg + g_offset < 255 {
+            avg as u8 + g_offset as u8
+        } else {
+            255
+        };
+        buf[i + 2] = if avg + b_offset < 255 {
+            avg as u8 + b_offset as u8
+        } else {
+            255
+        };
+    }
+}
+
 /// Convert an image to sepia.
 ///
 /// # Arguments
