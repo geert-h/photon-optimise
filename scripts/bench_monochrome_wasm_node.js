@@ -58,8 +58,8 @@ function assertSameOutput(input) {
     const dispatch = new photon.PhotonImage(input.slice(), width, height);
 
     try {
-        photon.monochrome_scalar(scalar, rOffset, gOffset, bOffset);
-        photon.monochrome(dispatch, rOffset, gOffset, bOffset);
+        photon.monochrome(scalar, rOffset, gOffset, bOffset);
+        photon.monochrome_simd(dispatch, rOffset, gOffset, bOffset);
 
         const scalarBytes = scalar.get_raw_pixels();
         const dispatchBytes = dispatch.get_raw_pixels();
@@ -127,7 +127,7 @@ console.log(`scalar and dispatch outputs are byte-identical, checksum=${expected
 
 bench(
     "scalar",
-    (img) => photon.monochrome_scalar(img, rOffset, gOffset, bOffset),
+    (img) => photon.monochrome(img, rOffset, gOffset, bOffset),
     input,
 );
-bench("dispatch", (img) => photon.monochrome(img, rOffset, gOffset, bOffset), input);
+bench("dispatch", (img) => photon.monochrome_simd(img, rOffset, gOffset, bOffset), input);

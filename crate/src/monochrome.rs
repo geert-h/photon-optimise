@@ -28,18 +28,40 @@ use wasm_bindgen::prelude::*;
 ///
 #[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
 pub fn monochrome(img: &mut PhotonImage, r_offset: u32, g_offset: u32, b_offset: u32) {
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    unsafe {
-        monochrome_simd(img, r_offset, g_offset, b_offset);
-    }
+    let end = img.raw_pixels.len();
 
-    #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
-    {
-        monochrome_scalar(img, r_offset, g_offset, b_offset);
+    for i in (0..end).step_by(4) {
+        let r_val = img.raw_pixels[i] as u32;
+        let g_val = img.raw_pixels[i + 1] as u32;
+        let b_val = img.raw_pixels[i + 2] as u32;
+        let mut avg: u32 = (r_val + g_val + b_val) / 3;
+        if avg >= 255 {
+            avg = 255
+        }
+        let new_r = if avg + r_offset < 255 {
+            avg as u8 + r_offset as u8
+        } else {
+            255
+        };
+        let new_g = if avg + g_offset < 255 {
+            avg as u8 + g_offset as u8
+        } else {
+            255
+        };
+        let new_b = if avg + b_offset < 255 {
+            avg as u8 + b_offset as u8
+        } else {
+            255
+        };
+
+        img.raw_pixels[i] = new_r;
+        img.raw_pixels[i + 1] = new_g;
+        img.raw_pixels[i + 2] = new_b;
     }
 }
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
 #[target_feature(enable = "simd128")]
 pub unsafe fn monochrome_simd(
     img: &mut PhotonImage,
@@ -113,45 +135,6 @@ fn monochrome_scalar_slice(buf: &mut [u8], r_offset: u32, g_offset: u32, b_offse
         } else {
             255
         };
-    }
-}
-
-#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
-pub fn monochrome_scalar(
-    img: &mut PhotonImage,
-    r_offset: u32,
-    g_offset: u32,
-    b_offset: u32,
-) {
-    let end = img.raw_pixels.len();
-
-    for i in (0..end).step_by(4) {
-        let r_val = img.raw_pixels[i] as u32;
-        let g_val = img.raw_pixels[i + 1] as u32;
-        let b_val = img.raw_pixels[i + 2] as u32;
-        let mut avg: u32 = (r_val + g_val + b_val) / 3;
-        if avg >= 255 {
-            avg = 255
-        }
-        let new_r = if avg + r_offset < 255 {
-            avg as u8 + r_offset as u8
-        } else {
-            255
-        };
-        let new_g = if avg + g_offset < 255 {
-            avg as u8 + g_offset as u8
-        } else {
-            255
-        };
-        let new_b = if avg + b_offset < 255 {
-            avg as u8 + b_offset as u8
-        } else {
-            255
-        };
-
-        img.raw_pixels[i] = new_r;
-        img.raw_pixels[i + 1] = new_g;
-        img.raw_pixels[i + 2] = new_b;
     }
 }
 
