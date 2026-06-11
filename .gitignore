@@ -16,3 +16,7 @@ output*.png
 
 # Jetbrains IDE
 .idea/
+
+# Nix
+.direnv
+result
