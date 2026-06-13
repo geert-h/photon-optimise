@@ -96,7 +96,43 @@ impl Pipeline {
         self
     }
 
+    pub fn swap_channels(mut self, mut channel1: usize, mut channel2: usize) -> Self {
+        if channel1 > 2 {
+            panic!(
+                "Invalid channel index passed. Channel1 must be equal to 0, 1, or 2."
+            );
+        }
+        if channel2 > 2 {
+            panic!(
+                "Invalid channel index passed. Channel2 must be equal to 0, 1, or 2."
+            );
+        }
+
+        self.flush_pixel_ops();
+
+        if channel1 == channel2 {
+            return self;
+        }
+
+        if channel1 > channel2 {
+            std::mem::swap(&mut channel1, &mut channel2);
+        }
+
+        match (channel1, channel2) {
+            (0, 1) => std::mem::swap(&mut self.image.r, &mut self.image.g),
+            (0, 2) => std::mem::swap(&mut self.image.r, &mut self.image.b),
+            (1, 2) => std::mem::swap(&mut self.image.g, &mut self.image.b),
+            _ => unreachable!(),
+        }
+
+        self
+    }
+
     fn flush_pixel_ops(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+
         for i in 0..self.image.r.len() {
             let mut r = self.image.r[i];
             let mut g = self.image.g[i];
@@ -109,6 +145,16 @@ impl Pipeline {
                         r = avg;
                         g = avg;
                         b = avg;
+                    }
+                    PixelOp::Monochrome {
+                        r_offset,
+                        g_offset,
+                        b_offset,
+                    } => {
+                        let avg = (r as u32 + g as u32 + b as u32) / 3;
+                        r = (avg + *r_offset as u32).min(255) as u8;
+                        g = (avg + *g_offset as u32).min(255) as u8;
+                        b = (avg + *b_offset as u32).min(255) as u8;
                     }
                     PixelOp::Invert => {
                         r = 255 - r;
@@ -124,7 +170,6 @@ impl Pipeline {
                         g = (g as i16 + dg).clamp(0, 255) as u8;
                         b = (b as i16 + db).clamp(0, 255) as u8;
                     }
-                    _ => todo!(),
                 }
             }
 
