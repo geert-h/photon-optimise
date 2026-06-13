@@ -63,6 +63,10 @@ criterion = "0.3"
 name = "photon_benchmark"
 harness = false
 
+[[bench]]
+name = "pipeline_benchmark"
+harness = false
+
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
 
