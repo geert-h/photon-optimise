@@ -104,6 +104,8 @@ impl PlanarImage {
             let px2 = v128_load(img.raw_pixels.as_ptr().add(base + 32) as *const v128);
             let px3 = v128_load(img.raw_pixels.as_ptr().add(base + 48) as *const v128);
 
+            // We must divide lanes first into two separate vectors
+            // This is because there is no operations for shuffling more than 2 vectors at a time
             let r01 = u8x16_shuffle::<0, 4, 8, 12, 16, 20, 24, 28, 0, 0, 0, 0, 0, 0, 0, 0>(
                 px0, px1,
             );
@@ -133,6 +135,8 @@ impl PlanarImage {
                     px2, px3,
                 );
 
+            // Take first 8 pixels from {r,g,b,a}01 and first 8 pixels from {r,g,b,a}23
+            // to create 16 pixels for each channel
             let r_vec =
                 u8x16_shuffle::<0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23>(
                     r01, r23,
@@ -156,6 +160,7 @@ impl PlanarImage {
             v128_store(a.as_mut_ptr().add(i) as *mut v128, a_vec);
         }
 
+        // Scalar tail
         for (offset, px) in img.raw_pixels[simd_pixels * 4..]
             .chunks_exact(4)
             .enumerate()
@@ -191,95 +196,31 @@ impl PlanarImage {
             let b = v128_load(self.b.as_ptr().add(i) as *const v128);
             let a = v128_load(self.a.as_ptr().add(i) as *const v128);
 
-            let rg_lo =
-                u8x16_shuffle::<0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23>(
-                    r, g,
-                );
-            let rg_hi = u8x16_shuffle::<
-                8,
-                24,
-                9,
-                25,
-                10,
-                26,
-                11,
-                27,
-                12,
-                28,
-                13,
-                29,
-                14,
-                30,
-                15,
-                31,
-            >(r, g);
-            let ba_lo =
-                u8x16_shuffle::<0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23>(
-                    b, a,
-                );
-            let ba_hi = u8x16_shuffle::<
-                8,
-                24,
-                9,
-                25,
-                10,
-                26,
-                11,
-                27,
-                12,
-                28,
-                13,
-                29,
-                14,
-                30,
-                15,
-                31,
-            >(b, a);
+            #[rustfmt::skip]
+            let rg_lo = u8x16_shuffle::<0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23>(r, g);
+            #[rustfmt::skip]
+            let rg_hi =
+                u8x16_shuffle::<8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31, >(r, g);
 
-            let out0 =
-                u8x16_shuffle::<0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23>(
-                    rg_lo, ba_lo,
-                );
-            let out1 = u8x16_shuffle::<
-                8,
-                9,
-                24,
-                25,
-                10,
-                11,
-                26,
-                27,
-                12,
-                13,
-                28,
-                29,
-                14,
-                15,
-                30,
-                31,
-            >(rg_lo, ba_lo);
+            #[rustfmt::skip]
+            let ba_lo =
+                u8x16_shuffle::<0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23>(b, a);
+
+            #[rustfmt::skip]
+            let ba_hi =
+                u8x16_shuffle::<8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31, >(b, a);
+
+            #[rustfmt::skip]
+            let out0 = u8x16_shuffle::<0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23>(rg_lo, ba_lo);
+
+            #[rustfmt::skip]
+            let out1 =
+                u8x16_shuffle::<8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31>(rg_lo, ba_lo);
+            #[rustfmt::skip]
             let out2 =
-                u8x16_shuffle::<0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23>(
-                    rg_hi, ba_hi,
-                );
-            let out3 = u8x16_shuffle::<
-                8,
-                9,
-                24,
-                25,
-                10,
-                11,
-                26,
-                27,
-                12,
-                13,
-                28,
-                29,
-                14,
-                15,
-                30,
-                31,
-            >(rg_hi, ba_hi);
+                u8x16_shuffle::<0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23>(rg_hi, ba_hi);
+            #[rustfmt::skip]
+            let out3 = u8x16_shuffle::<8, 9, 24, 2, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31>(rg_hi, ba_hi);
 
             let base = i * 4;
             v128_store(raw_pixels.as_mut_ptr().add(base) as *mut v128, out0);
