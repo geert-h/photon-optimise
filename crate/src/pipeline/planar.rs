@@ -222,7 +222,7 @@ impl PlanarImage {
             let out2 =
                 u8x16_shuffle::<0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23>(rg_hi, ba_hi);
             #[rustfmt::skip]
-            let out3 = u8x16_shuffle::<8, 9, 24, 2, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31>(rg_hi, ba_hi);
+            let out3 = u8x16_shuffle::<8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31>(rg_hi, ba_hi);
 
             let base = i * 4;
             v128_store(raw_pixels.as_mut_ptr().add(base) as *mut v128, out0);
