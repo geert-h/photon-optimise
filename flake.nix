@@ -16,11 +16,13 @@
             packages = with pkgs; [
               cargo
               clippy
-              pkg-config
+              lld
               nodejs
+              pkg-config
               rustc
               rustfmt
               rust-analyzer
+              wasm-pack
 
               # Debug/profiling tools
               hotspot
