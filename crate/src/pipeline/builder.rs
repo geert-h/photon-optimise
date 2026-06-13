@@ -1,0 +1,171 @@
+use super::ops::PixelOp;
+use super::planar::PlanarImage;
+use crate::PhotonImage;
+
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+use super::ops::apply_pixel_op_scalar;
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use super::ops::{alter_channels_planes_simd, invert_planes_simd};
+
+#[cfg(feature = "enable_wasm")]
+use wasm_bindgen::prelude::wasm_bindgen;
+
+pub struct Pipeline {
+    image: PlanarImage,
+    pending: Vec<PixelOp>,
+}
+
+impl Pipeline {
+    pub fn from_photon_image(img: &PhotonImage) -> Self {
+        let planar_image = PlanarImage::from_photon_image(img);
+        Pipeline {
+            image: planar_image,
+            pending: Vec::new(),
+        }
+    }
+
+    pub fn finish(mut self) -> PhotonImage {
+        self.flush_pixel_ops();
+        self.image.to_photon_image()
+    }
+
+    pub fn gray_scale(mut self) -> Self {
+        self.pending.push(PixelOp::GrayScale);
+        self
+    }
+
+    pub fn monochrome(mut self, r_offset: u8, g_offset: u8, b_offset: u8) -> Self {
+        self.pending.push(PixelOp::Monochrome {
+            r_offset,
+            g_offset,
+            b_offset,
+        });
+        self
+    }
+
+    pub fn invert(mut self) -> Self {
+        self.pending.push(PixelOp::Invert);
+        self
+    }
+
+    pub fn alter_channels(mut self, r: i16, g: i16, b: i16) -> Self {
+        self.pending.push(PixelOp::AlterChannels { r, g, b });
+        self
+    }
+
+    pub fn swap_channels(mut self, mut channel1: usize, mut channel2: usize) -> Self {
+        if channel1 > 2 {
+            panic!(
+                "Invalid channel index passed. Channel1 must be equal to 0, 1, or 2."
+            );
+        }
+        if channel2 > 2 {
+            panic!(
+                "Invalid channel index passed. Channel2 must be equal to 0, 1, or 2."
+            );
+        }
+
+        self.flush_pixel_ops();
+
+        if channel1 == channel2 {
+            return self;
+        }
+
+        if channel1 > channel2 {
+            std::mem::swap(&mut channel1, &mut channel2);
+        }
+
+        match (channel1, channel2) {
+            (0, 1) => std::mem::swap(&mut self.image.r, &mut self.image.g),
+            (0, 2) => std::mem::swap(&mut self.image.r, &mut self.image.b),
+            (1, 2) => std::mem::swap(&mut self.image.g, &mut self.image.b),
+            _ => unreachable!(),
+        }
+
+        self
+    }
+
+    fn flush_pixel_ops(&mut self) {
+        if self.pending.is_empty() {
+            return;
+        }
+
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        unsafe {
+            self.flush_pixel_ops_simd();
+        }
+
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        {
+            self.flush_pixel_ops_scalar();
+        }
+    }
+
+    #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+    fn flush_pixel_ops_scalar(&mut self) {
+        for i in 0..self.image.r.len() {
+            let mut r = self.image.r[i];
+            let mut g = self.image.g[i];
+            let mut b = self.image.b[i];
+
+            for op in &self.pending {
+                apply_pixel_op_scalar(op, &mut r, &mut g, &mut b);
+            }
+
+            self.image.r[i] = r;
+            self.image.g[i] = g;
+            self.image.b[i] = b;
+        }
+
+        self.pending.clear();
+    }
+
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    #[target_feature(enable = "simd128")]
+    unsafe fn flush_pixel_ops_simd(&mut self) {
+        for op in &self.pending {
+            match op {
+                PixelOp::Invert => invert_planes_simd(
+                    &mut self.image.r,
+                    &mut self.image.g,
+                    &mut self.image.b,
+                ),
+                PixelOp::AlterChannels { r, g, b } => alter_channels_planes_simd(
+                    &mut self.image.r,
+                    &mut self.image.g,
+                    &mut self.image.b,
+                    *r,
+                    *g,
+                    *b,
+                ),
+                _ => todo!(
+                    "There is no SIMD-optimized implementation for this operation yet"
+                ),
+            }
+        }
+
+        self.pending.clear();
+    }
+}
+
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
+pub fn pipeline_conversion_roundtrip(img: &mut PhotonImage) {
+    let output = Pipeline::from_photon_image(img).finish();
+    img.raw_pixels = output.raw_pixels;
+}
+
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
+pub fn pipeline_invert(img: &mut PhotonImage) {
+    let output = Pipeline::from_photon_image(img).invert().finish();
+    img.raw_pixels = output.raw_pixels;
+}
+
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
+pub fn pipeline_invert_alter_channels(img: &mut PhotonImage, r: i16, g: i16, b: i16) {
+    let output = Pipeline::from_photon_image(img)
+        .invert()
+        .alter_channels(r, g, b)
+        .finish();
+    img.raw_pixels = output.raw_pixels;
+}
