@@ -11,6 +11,7 @@ use super::ops::{alter_channels_planes_simd, invert_planes_simd};
 #[cfg(feature = "enable_wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
 
+#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
 pub struct Pipeline {
     image: PlanarImage,
     pending: Vec<PixelOp>,
@@ -54,7 +55,12 @@ impl Pipeline {
         self
     }
 
-    pub fn swap_channels(mut self, mut channel1: usize, mut channel2: usize) -> Self {
+    pub fn swap_channels(mut self, channel1: usize, channel2: usize) -> Self {
+        self.swap_channels_in_place(channel1, channel2);
+        self
+    }
+
+    fn swap_channels_in_place(&mut self, mut channel1: usize, mut channel2: usize) {
         if channel1 > 2 {
             panic!(
                 "Invalid channel index passed. Channel1 must be equal to 0, 1, or 2."
@@ -69,7 +75,7 @@ impl Pipeline {
         self.flush_pixel_ops();
 
         if channel1 == channel2 {
-            return self;
+            return;
         }
 
         if channel1 > channel2 {
@@ -82,8 +88,6 @@ impl Pipeline {
             (1, 2) => std::mem::swap(&mut self.image.g, &mut self.image.b),
             _ => unreachable!(),
         }
-
-        self
     }
 
     fn flush_pixel_ops(&mut self) {
@@ -149,23 +153,46 @@ impl Pipeline {
     }
 }
 
-#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
-pub fn pipeline_conversion_roundtrip(img: &mut PhotonImage) {
-    let output = Pipeline::from_photon_image(img).finish();
-    img.raw_pixels = output.raw_pixels;
-}
+#[cfg(feature = "enable_wasm")]
+#[wasm_bindgen]
+impl Pipeline {
+    #[wasm_bindgen(constructor)]
+    pub fn new(img: &PhotonImage) -> Pipeline {
+        Pipeline::from_photon_image(img)
+    }
 
-#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
-pub fn pipeline_invert(img: &mut PhotonImage) {
-    let output = Pipeline::from_photon_image(img).invert().finish();
-    img.raw_pixels = output.raw_pixels;
-}
+    #[wasm_bindgen(js_name = gray_scale)]
+    pub fn wasm_gray_scale(&mut self) {
+        self.pending.push(PixelOp::GrayScale);
+    }
 
-#[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
-pub fn pipeline_invert_alter_channels(img: &mut PhotonImage, r: i16, g: i16, b: i16) {
-    let output = Pipeline::from_photon_image(img)
-        .invert()
-        .alter_channels(r, g, b)
-        .finish();
-    img.raw_pixels = output.raw_pixels;
+    #[wasm_bindgen(js_name = monochrome)]
+    pub fn wasm_monochrome(&mut self, r_offset: u8, g_offset: u8, b_offset: u8) {
+        self.pending.push(PixelOp::Monochrome {
+            r_offset,
+            g_offset,
+            b_offset,
+        });
+    }
+
+    #[wasm_bindgen(js_name = invert)]
+    pub fn wasm_invert(&mut self) {
+        self.pending.push(PixelOp::Invert);
+    }
+
+    #[wasm_bindgen(js_name = alter_channels)]
+    pub fn wasm_alter_channels(&mut self, r: i16, g: i16, b: i16) {
+        self.pending.push(PixelOp::AlterChannels { r, g, b });
+    }
+
+    #[wasm_bindgen(js_name = swap_channels)]
+    pub fn wasm_swap_channels(&mut self, channel1: usize, channel2: usize) {
+        self.swap_channels_in_place(channel1, channel2);
+    }
+
+    #[wasm_bindgen(js_name = finish)]
+    pub fn wasm_finish(&mut self) -> PhotonImage {
+        self.flush_pixel_ops();
+        self.image.to_photon_image()
+    }
 }

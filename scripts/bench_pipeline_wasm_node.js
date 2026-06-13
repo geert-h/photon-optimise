@@ -67,24 +67,27 @@ function assertSameBytes(label, left, right) {
 
 function assertSameOutput(input) {
     const original = new photon.PhotonImage(input.slice(), width, height);
-    const roundtrip = new photon.PhotonImage(input.slice(), width, height);
     const scalarInvert = new photon.PhotonImage(input.slice(), width, height);
-    const pipelineInvert = new photon.PhotonImage(input.slice(), width, height);
     const scalarInvertAlter = new photon.PhotonImage(input.slice(), width, height);
-    const pipelineInvertAlter = new photon.PhotonImage(input.slice(), width, height);
+    const roundtripInput = new photon.PhotonImage(input.slice(), width, height);
+    const pipelineInvertInput = new photon.PhotonImage(input.slice(), width, height);
+    const pipelineInvertAlterInput = new photon.PhotonImage(input.slice(), width, height);
+    let roundtrip = null;
+    let pipelineInvert = null;
+    let pipelineInvertAlter = null;
 
     try {
-        photon.pipeline_conversion_roundtrip(roundtrip);
+        roundtrip = finishPipeline(roundtripInput, () => {});
         photon.invert(scalarInvert);
-        photon.pipeline_invert(pipelineInvert);
+        pipelineInvert = finishPipeline(pipelineInvertInput, (pipeline) => {
+            pipeline.invert();
+        });
         photon.invert(scalarInvertAlter);
         photon.alter_channels(scalarInvertAlter, rAmount, gAmount, bAmount);
-        photon.pipeline_invert_alter_channels(
-            pipelineInvertAlter,
-            rAmount,
-            gAmount,
-            bAmount,
-        );
+        pipelineInvertAlter = finishPipeline(pipelineInvertAlterInput, (pipeline) => {
+            pipeline.invert();
+            pipeline.alter_channels(rAmount, gAmount, bAmount);
+        });
 
         const originalBytes = original.get_raw_pixels();
         const roundtripBytes = roundtrip.get_raw_pixels();
@@ -108,20 +111,43 @@ function assertSameOutput(input) {
         };
     } finally {
         original.free();
-        roundtrip.free();
         scalarInvert.free();
-        pipelineInvert.free();
         scalarInvertAlter.free();
-        pipelineInvertAlter.free();
+        roundtripInput.free();
+        pipelineInvertInput.free();
+        pipelineInvertAlterInput.free();
+        if (roundtrip !== null) {
+            roundtrip.free();
+        }
+        if (pipelineInvert !== null) {
+            pipelineInvert.free();
+        }
+        if (pipelineInvertAlter !== null) {
+            pipelineInvertAlter.free();
+        }
+    }
+}
+
+function finishPipeline(img, configure) {
+    const pipeline = new photon.Pipeline(img);
+    try {
+        configure(pipeline);
+        return pipeline.finish();
+    } finally {
+        pipeline.free();
     }
 }
 
 function bench(name, fn, input) {
     for (let i = 0; i < warmups; i += 1) {
         const img = new photon.PhotonImage(input.slice(), width, height);
+        let output = null;
         try {
-            fn(img);
+            output = fn(img) || img;
         } finally {
+            if (output !== img && output !== null) {
+                output.free();
+            }
             img.free();
         }
     }
@@ -131,13 +157,17 @@ function bench(name, fn, input) {
 
     for (let i = 0; i < iterations; i += 1) {
         const img = new photon.PhotonImage(input.slice(), width, height);
+        let output = null;
         try {
-            fn(img);
+            output = fn(img) || img;
 
             if (i === iterations - 1) {
-                lastChecksum = checksum(img.get_raw_pixels());
+                lastChecksum = checksum(output.get_raw_pixels());
             }
         } finally {
+            if (output !== img && output !== null) {
+                output.free();
+            }
             img.free();
         }
     }
@@ -163,8 +193,15 @@ console.log(
 );
 
 bench("scalar_invert", (img) => photon.invert(img), input);
-bench("pipeline_conversion", (img) => photon.pipeline_conversion_roundtrip(img), input);
-bench("pipeline_invert", (img) => photon.pipeline_invert(img), input);
+bench("pipeline_conversion", (img) => finishPipeline(img, () => {}), input);
+bench(
+    "pipeline_invert",
+    (img) =>
+        finishPipeline(img, (pipeline) => {
+            pipeline.invert();
+        }),
+    input,
+);
 bench(
     "scalar_invert_alter",
     (img) => {
@@ -175,6 +212,10 @@ bench(
 );
 bench(
     "pipeline_invert_alter",
-    (img) => photon.pipeline_invert_alter_channels(img, rAmount, gAmount, bAmount),
+    (img) =>
+        finishPipeline(img, (pipeline) => {
+            pipeline.invert();
+            pipeline.alter_channels(rAmount, gAmount, bAmount);
+        }),
     input,
 );
