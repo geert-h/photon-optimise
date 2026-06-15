@@ -27,7 +27,7 @@ fn pipeline_matches_chained_scalar_ops() {
 
     let pipeline_image =
         Pipeline::from_photon_image(&PhotonImage::new(raw_pix, width, height))
-            .gray_scale()
+            .grayscale()
             .invert()
             .alter_channels(10, -20, 30)
             .finish();
@@ -86,7 +86,7 @@ fn pipeline_preserves_order_around_swap_channels() {
 
     let pipeline_image =
         Pipeline::from_photon_image(&PhotonImage::new(raw_pix, width, height))
-            .gray_scale()
+            .grayscale()
             .alter_channels(10, -20, 30)
             .swap_channels(0, 2)
             .invert()
@@ -118,7 +118,7 @@ fn pipeline_long_fusible_chain_matches_scalar() {
 
     let pipeline_image =
         Pipeline::from_photon_image(&PhotonImage::new(raw_pix, width, height))
-            .gray_scale()
+            .grayscale()
             .invert()
             .alter_channels(10, -20, 30)
             .monochrome(40, 50, 100)

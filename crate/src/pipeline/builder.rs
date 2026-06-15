@@ -31,7 +31,7 @@ impl Pipeline {
         self.image.to_photon_image()
     }
 
-    pub fn gray_scale(mut self) -> Self {
+    pub fn grayscale(mut self) -> Self {
         self.pending.push(PixelOp::GrayScale);
         self
     }
@@ -161,8 +161,8 @@ impl Pipeline {
         Pipeline::from_photon_image(img)
     }
 
-    #[wasm_bindgen(js_name = gray_scale)]
-    pub fn wasm_gray_scale(&mut self) {
+    #[wasm_bindgen(js_name = grayscale)]
+    pub fn wasm_grayscale(&mut self) {
         self.pending.push(PixelOp::GrayScale);
     }
 
