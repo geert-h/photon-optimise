@@ -6,7 +6,12 @@ use crate::PhotonImage;
 use super::ops::apply_pixel_op_scalar;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-use super::ops::{alter_channels_planes_simd, invert_planes_simd};
+use super::ops::{
+  alter_channels_planes_simd, 
+  grayscale_planes_simd, 
+  invert_planes_simd,
+  monochrome_planes_simd,
+};
 
 #[cfg(feature = "enable_wasm")]
 use wasm_bindgen::prelude::wasm_bindgen;
@@ -143,8 +148,18 @@ impl Pipeline {
                     *g,
                     *b,
                 ),
-                _ => todo!(
-                    "There is no SIMD-optimized implementation for this operation yet"
+                PixelOp::GrayScale => grayscale_planes_simd(
+                    &mut self.image.r, 
+                    &mut self.image.g, 
+                    &mut self.image.b,
+                ),
+                PixelOp::Monochrome { r_offset, g_offset, b_offset } => monochrome_planes_simd(
+                    &mut self.image.r, 
+                    &mut self.image.g, 
+                    &mut self.image.b,
+                    *r_offset, 
+                    *g_offset, 
+                    *b_offset,
                 ),
             }
         }

@@ -1,4 +1,3 @@
-// Wasm benchmarks can be run with `wasm-pack test --node --release crate -- --nocapture`
 #![cfg(target_arch = "wasm32")]
 use js_sys::Date;
 use photon_rs::pipeline::Pipeline;
@@ -10,7 +9,8 @@ macro_rules! log {
 }
 
 const SIZES: &[(u32, u32)] = &[(512, 512), (1280, 720), (1000, 500), (1920, 1080)];
-const ITERS: u32 = 50;
+const ITERS: u32 = 500;
+const WARMUP: u32 = 200;
 
 pub struct Bench {
   pub name: &'static str,
@@ -45,7 +45,7 @@ fn synthetic_image(width: u32, height: u32) -> PhotonImage {
   PhotonImage::new(raw, width, height)
 }
 
-fn check_and_time(bench: &Bench, img: &PhotonImage) -> (f64, f64) {
+fn validate_and_measure(bench: &Bench, img: &PhotonImage) -> (f64, f64) {
   // Correctness check: original and pipeline must have the same output
   let mut original_out = img.clone();
   let mut pipeline_out = img.clone();
@@ -61,15 +61,15 @@ fn check_and_time(bench: &Bench, img: &PhotonImage) -> (f64, f64) {
   );
 
   // Benchmark: original vs pipeline
-  // warm-up, not timed
-  for _ in 0..10 {
-    let mut img_clone = img.clone();
-    (bench.original)(&mut img_clone);
-    let mut img_clone = img.clone();
-    (bench.pipeline)(&mut img_clone);
-  }
 
   // Original
+  // Not timed, warm-up
+  let mut img_clone = img.clone();
+  for _ in 0..WARMUP {
+    (bench.original)(&mut img_clone);
+  }
+
+  // Timed
   let mut img_clone = img.clone();
   let start = Date::now();
   for _ in 0..ITERS {
@@ -78,6 +78,13 @@ fn check_and_time(bench: &Bench, img: &PhotonImage) -> (f64, f64) {
   let original_ms = (Date::now() - start) / ITERS as f64;
 
   // Pipeline
+  // Not timed, warm-up
+  let mut img_clone = img.clone();
+  for _ in 0..WARMUP {
+    (bench.pipeline)(&mut img_clone);
+  }
+
+  // Timed
   let mut img_clone = img.clone();
   let start = Date::now();
   for _ in 0..ITERS {
@@ -96,14 +103,15 @@ pub fn bench(benches: Vec<Bench>) {
   };
   log!("{}", variant);
 
-  log!("| benchmark\t\t| size\t\t| original (ms)\t| pipeline (ms)\t| speedup |");
+  log!("| benchmark\t\t\t| size\t\t| original (ms)\t| pipeline (ms)\t| speedup |");
+  log!("|-----------------------------------------------------------------------------------------|");
 
   for bench in &benches {
     for &(w, h) in SIZES {
       let img = synthetic_image(w, h);
-      let (original_ms, pipeline_ms) = check_and_time(&bench, &img);
+      let (original_ms, pipeline_ms) = validate_and_measure(&bench, &img);
       log!(
-        "| {}\t\t| {}x{}\t| {:.4}\t| {:.4}\t| {:.2}x   |",
+        "| {}\t\t\t| {}x{}\t| {:.4}\t| {:.4}\t| {:.2}x   |",
         bench.name,
         w,
         h,
@@ -112,5 +120,6 @@ pub fn bench(benches: Vec<Bench>) {
         original_ms / pipeline_ms
       );
     }
+    log!("|-----------------------------------------------------------------------------------------|");
   }
 }
