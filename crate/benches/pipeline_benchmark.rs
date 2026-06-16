@@ -56,7 +56,7 @@ fn bench_pipeline(c: &mut Criterion) {
             |img| {
                 black_box(
                     Pipeline::from_photon_image(&img)
-                        .gray_scale()
+                        .grayscale()
                         .invert()
                         .alter_channels(10, -20, 30)
                         .finish(),
@@ -136,7 +136,7 @@ fn bench_pipeline(c: &mut Criterion) {
             |img| {
                 black_box(
                     Pipeline::from_photon_image(&img)
-                        .gray_scale()
+                        .grayscale()
                         .alter_channels(10, -20, 30)
                         .swap_channels(0, 2)
                         .invert()
@@ -175,7 +175,7 @@ fn bench_pipeline(c: &mut Criterion) {
             |img| {
                 black_box(
                     Pipeline::from_photon_image(&img)
-                        .gray_scale()
+                        .grayscale()
                         .invert()
                         .alter_channels(10, -20, 30)
                         .monochrome(40, 50, 100)
