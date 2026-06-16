@@ -12,7 +12,7 @@ impl Pipeline {
     }
 
     pub fn blur_3x3(self) -> Self {
-        self.convolve_3x3([0.0; 9])
+        self.convolve_3x3([1.0; 9])
     }
 }
 
@@ -25,12 +25,12 @@ pub fn convolve_3x3(src: &PlanarImage, dst: &mut PlanarImage, kernel: [f32; 9]) 
     dst.r.fill(0);
     dst.g.fill(0);
     dst.b.fill(0);
-    // Not modified but does need to be copied over
-    dst.a.copy_from_slice(&src.a);
+    dst.a.fill(0);
 
     convolve_3x3_channel(&src.r, &mut dst.r, width, height, kernel);
     convolve_3x3_channel(&src.g, &mut dst.g, width, height, kernel);
     convolve_3x3_channel(&src.b, &mut dst.b, width, height, kernel);
+    convolve_3x3_channel(&src.a, &mut dst.a, width, height, kernel);
 }
 
 pub fn convolve_3x3_channel(
@@ -47,7 +47,7 @@ pub fn convolve_3x3_channel(
     let sum: f32 = kernel.iter().sum();
     let divisor = if sum == 0.0 { 1.0 } else { sum };
 
-    for y in 0..height {
+    for y in 1..height - 1 {
         let top = (y - 1) * width;
         let mid = y * width;
         let bot = (y + 1) * width;

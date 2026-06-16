@@ -5,6 +5,7 @@ mod common;
 
 use common::*;
 use photon_rs::channels::{alter_channels, invert, swap_channels};
+use photon_rs::conv::box_blur;
 use photon_rs::monochrome::{grayscale, monochrome};
 use wasm_bindgen_test::*;
 
@@ -26,6 +27,11 @@ fn run_pipeline_benchmarks() {
             name: "swap_channels",
             original: Box::new(|img| swap_channels(img, 0, 2)),
             pipeline: pipeline_to_fn(|p| p.swap_channels(0, 2)),
+        },
+        Bench {
+            name: "box_blur_3x3",
+            original: Box::new(|img| box_blur(img)),
+            pipeline: pipeline_to_fn(|p| p.blur_3x3()),
         },
         // Multiple chained operations.
         Bench {
@@ -57,7 +63,6 @@ fn run_pipeline_benchmarks() {
             }),
             pipeline: pipeline_to_fn(|p| {
                 p.grayscale()
-                    .grayscale()
                     .alter_channels(10, -20, 30)
                     .swap_channels(0, 2)
                     .invert()
