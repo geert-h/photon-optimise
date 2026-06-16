@@ -7,10 +7,8 @@ use super::ops::apply_pixel_op_scalar;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use super::ops::{
-  alter_channels_planes_simd, 
-  grayscale_planes_simd, 
-  invert_planes_simd,
-  monochrome_planes_simd,
+    alter_channels_planes_simd, grayscale_planes_simd, invert_planes_simd,
+    monochrome_planes_simd,
 };
 
 #[cfg(feature = "enable_wasm")]
@@ -149,65 +147,25 @@ impl Pipeline {
                     *b,
                 ),
                 PixelOp::GrayScale => grayscale_planes_simd(
-                    &mut self.image.r, 
-                    &mut self.image.g, 
+                    &mut self.image.r,
+                    &mut self.image.g,
                     &mut self.image.b,
                 ),
-                PixelOp::Monochrome { r_offset, g_offset, b_offset } => monochrome_planes_simd(
-                    &mut self.image.r, 
-                    &mut self.image.g, 
+                PixelOp::Monochrome {
+                    r_offset,
+                    g_offset,
+                    b_offset,
+                } => monochrome_planes_simd(
+                    &mut self.image.r,
+                    &mut self.image.g,
                     &mut self.image.b,
-                    *r_offset, 
-                    *g_offset, 
+                    *r_offset,
+                    *g_offset,
                     *b_offset,
                 ),
             }
         }
 
         self.pending.clear();
-    }
-}
-
-#[cfg(feature = "enable_wasm")]
-#[wasm_bindgen]
-impl Pipeline {
-    #[wasm_bindgen(constructor)]
-    pub fn new(img: &PhotonImage) -> Pipeline {
-        Pipeline::from_photon_image(img)
-    }
-
-    #[wasm_bindgen(js_name = grayscale)]
-    pub fn wasm_grayscale(&mut self) {
-        self.pending.push(PixelOp::GrayScale);
-    }
-
-    #[wasm_bindgen(js_name = monochrome)]
-    pub fn wasm_monochrome(&mut self, r_offset: u8, g_offset: u8, b_offset: u8) {
-        self.pending.push(PixelOp::Monochrome {
-            r_offset,
-            g_offset,
-            b_offset,
-        });
-    }
-
-    #[wasm_bindgen(js_name = invert)]
-    pub fn wasm_invert(&mut self) {
-        self.pending.push(PixelOp::Invert);
-    }
-
-    #[wasm_bindgen(js_name = alter_channels)]
-    pub fn wasm_alter_channels(&mut self, r: i16, g: i16, b: i16) {
-        self.pending.push(PixelOp::AlterChannels { r, g, b });
-    }
-
-    #[wasm_bindgen(js_name = swap_channels)]
-    pub fn wasm_swap_channels(&mut self, channel1: usize, channel2: usize) {
-        self.swap_channels_in_place(channel1, channel2);
-    }
-
-    #[wasm_bindgen(js_name = finish)]
-    pub fn wasm_finish(&mut self) -> PhotonImage {
-        self.flush_pixel_ops();
-        self.image.to_photon_image()
     }
 }
