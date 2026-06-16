@@ -16,6 +16,30 @@ pub struct PlanarImage {
 }
 
 impl PlanarImage {
+    pub(super) fn len(&self) -> usize {
+        self.r.len()
+    }
+
+    pub(super) fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub(super) fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub(super) fn empty_like(other: &PlanarImage) -> Self {
+        let len = other.len();
+        PlanarImage {
+            width: other.width,
+            height: other.height,
+            r: vec![0; len],
+            g: vec![0; len],
+            b: vec![0; len],
+            a: vec![0; len],
+        }
+    }
+
     pub fn from_photon_image(img: &PhotonImage) -> PlanarImage {
         let pixels = (img.width * img.height) as usize;
 

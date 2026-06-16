@@ -1,12 +1,12 @@
-use super::ops::PixelOp;
+use super::pixel_ops::PixelOp;
 use super::planar::PlanarImage;
 use crate::PhotonImage;
 
 #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
-use super::ops::apply_pixel_op_scalar;
+use super::pixel_ops::apply_pixel_op_scalar;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-use super::ops::{
+use super::pixel_ops::{
     alter_channels_planes_simd, grayscale_planes_simd, invert_planes_simd,
     monochrome_planes_simd,
 };
@@ -16,8 +16,9 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
 pub struct Pipeline {
-    image: PlanarImage,
-    pending: Vec<PixelOp>,
+    pub(super) image: PlanarImage,
+    pub(super) scratch: Option<PlanarImage>,
+    pub(super) pending: Vec<PixelOp>,
 }
 
 impl Pipeline {
@@ -25,32 +26,25 @@ impl Pipeline {
         let planar_image = PlanarImage::from_photon_image(img);
         Pipeline {
             image: planar_image,
+            scratch: None,
             pending: Vec::new(),
         }
+    }
+
+    // This function assumes that the dimensions of the image never change inside the pipeline.
+    // If we want to be able to change the dimensions of the image inside the pipeline,
+    // then this function must be changed to validate whether the size is still the same for the scratch image
+    pub(super) fn ensure_scratch(&mut self) {
+        if !self.scratch.is_none() {
+            return;
+        }
+
+        self.scratch = Some(PlanarImage::empty_like(&self.image))
     }
 
     pub fn finish(mut self) -> PhotonImage {
         self.flush_pixel_ops();
         self.image.to_photon_image()
-    }
-
-    pub fn grayscale(mut self) -> Self {
-        self.pending.push(PixelOp::GrayScale);
-        self
-    }
-
-    pub fn monochrome(mut self, r_offset: u8, g_offset: u8, b_offset: u8) -> Self {
-        self.pending.push(PixelOp::Monochrome {
-            r_offset,
-            g_offset,
-            b_offset,
-        });
-        self
-    }
-
-    pub fn invert(mut self) -> Self {
-        self.pending.push(PixelOp::Invert);
-        self
     }
 
     pub fn alter_channels(mut self, r: i16, g: i16, b: i16) -> Self {
@@ -93,7 +87,7 @@ impl Pipeline {
         }
     }
 
-    fn flush_pixel_ops(&mut self) {
+    pub(super) fn flush_pixel_ops(&mut self) {
         if self.pending.is_empty() {
             return;
         }

@@ -1,3 +1,4 @@
+use crate::pipeline::Pipeline;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use std::arch::wasm32::v128;
 
@@ -15,6 +16,27 @@ pub(super) enum PixelOp {
         g: i16,
         b: i16,
     },
+}
+
+impl Pipeline {
+    pub fn grayscale(mut self) -> Self {
+        self.pending.push(PixelOp::GrayScale);
+        self
+    }
+
+    pub fn monochrome(mut self, r_offset: u8, g_offset: u8, b_offset: u8) -> Self {
+        self.pending.push(PixelOp::Monochrome {
+            r_offset,
+            g_offset,
+            b_offset,
+        });
+        self
+    }
+
+    pub fn invert(mut self) -> Self {
+        self.pending.push(PixelOp::Invert);
+        self
+    }
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -117,7 +139,6 @@ unsafe fn alter_plane_simd(channel: &mut [u8], amt: i16) {
     }
 }
 
-
 // Helper function for `grayscale_planes_simd` and `monochrome_planes_simd` below
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 #[target_feature(enable = "simd128")]
@@ -218,9 +239,18 @@ pub(super) unsafe fn monochrome_planes_simd(
         let avg = average_rgb_planes_simd(rv, gv, bv);
 
         // avg + offset, clamped to 255, matches the scalar `.min(255)`.
-        v128_store(r.as_mut_ptr().add(i) as *mut v128, u8x16_add_sat(avg, r_off));
-        v128_store(g.as_mut_ptr().add(i) as *mut v128, u8x16_add_sat(avg, g_off));
-        v128_store(b.as_mut_ptr().add(i) as *mut v128, u8x16_add_sat(avg, b_off));
+        v128_store(
+            r.as_mut_ptr().add(i) as *mut v128,
+            u8x16_add_sat(avg, r_off),
+        );
+        v128_store(
+            g.as_mut_ptr().add(i) as *mut v128,
+            u8x16_add_sat(avg, g_off),
+        );
+        v128_store(
+            b.as_mut_ptr().add(i) as *mut v128,
+            u8x16_add_sat(avg, b_off),
+        );
     }
 
     for i in simd_len..r.len() {
