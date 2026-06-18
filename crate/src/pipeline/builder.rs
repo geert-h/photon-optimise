@@ -18,6 +18,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 pub struct Pipeline {
     pub(super) image: PlanarImage,
     pub(super) scratch: Option<PlanarImage>,
+    pub(super) f32_scratch: Option<Vec<f32>>,
     pub(super) pending: Vec<PixelOp>,
 }
 
@@ -27,6 +28,7 @@ impl Pipeline {
         Pipeline {
             image: planar_image,
             scratch: None,
+            f32_scratch: None,
             pending: Vec::new(),
         }
     }
@@ -40,6 +42,12 @@ impl Pipeline {
         }
 
         self.scratch = Some(PlanarImage::empty_like(&self.image))
+    }
+
+    pub(super) fn ensure_f32_scratch(&mut self) {
+        if self.f32_scratch.is_none() {
+            self.f32_scratch = Some(vec![0.0; self.image.len()]);
+        }
     }
 
     pub fn finish(mut self) -> PhotonImage {
