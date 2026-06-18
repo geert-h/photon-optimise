@@ -50,7 +50,8 @@ development.
 - **Pure Rust** - Unlike other libraries, 100% of the library's codebase is written in Rust, so security and safety is guaranteed.
 
 ### Featured in
-Photon is the image processing library used in the AI assistant [OpenClaw](https://github.com/openclaw/openclaw).
+Photon is the image processing library used in the AI assistant [OpenClaw](https://github.com/openclaw/openclaw)
+through [Rastermill](https://rastermill.com/).
 
 It is also the image processing library used in the [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) also.
 
@@ -100,7 +101,7 @@ Functions include:
 - **Filters**: Over 30 pre-set filters available, incorporating various effects and transformations.
 - **Watermarking**: Watermark images in multiple formats.
 - **Blending**: Blend images together using 10 different techniques, change image backgrounds.
-- **Special effects**: Film grain, vignette, Bayer dither effects + many more (in next 2026 release)
+- **Special effects**: Film grain, vignette, Bayer dither effects + many more (in repo, will be released through NPM/Crates.io in next library release in 2026)
 
 ## Get Started Natively
 
@@ -141,8 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Building WebAssembly package
 
-In order to build the WebAssembly package you will need `wasm-pack`. Check https://rustwasm.github.io/wasm-pack/installer/ on how to install it. Then you can run the command:
-
+In order to build the WebAssembly package you will need `wasm-pack`. Check the [wasm-pack installation guide](https://rustwasm.github.io/wasm-pack/installer/) on how to install it. Then you can run the command:
 
 ```bash
 wasm-pack build ./crate
@@ -209,13 +209,13 @@ Compare the original image with the outputted image, and you'll see the desired 
 - Bayer dither, film grain and vignette effects - Added in [PR #216](https://github.com/silvia-odwyer/photon/pull/216)
 - 3 way color grading and functions for making adjustments/corrections to images - Added in [PR #214](https://github.com/silvia-odwyer/photon/pull/214)
 - Halftoning effect for WASM - Added in [PR #184](https://github.com/silvia-odwyer/photon/pull/184)
-- WebP Encoding Support - Added in [PR #164](https://github.com/silvia-odwyer/photon/pull/164)
 
-## Cool Projects Using Photon
+## Including Photon
 - [OpenClaw](https://github.com/openclaw/openclaw)
 - [Pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 
 - [Next Image Processing API](https://github.com/yoeven/next-image-processing-api)
 - [Hypetrigger](https://crates.io/crates/hypetrigger)
+- [PhotonLab](https://watt3d.dev/photon-lab/)
 
 If you've built a project with Photon and would like to be included in the list, just submit a PR!
 
@@ -243,7 +243,7 @@ Photon is always accepting new filters and functions. In that vein if you'd like
 
 ## To Do
 - Blend images using browser-specific functions for WASM version of library.
-- Vintage images with light leaks, etc.,
+- Vintage images with light leaks, etc.
 - Tests in a headless web browser for WebAssembly version of library
 
 ## Contributors
