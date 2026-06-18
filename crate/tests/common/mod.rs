@@ -1,4 +1,5 @@
 #![cfg(target_arch = "wasm32")]
+#![allow(dead_code)]
 use js_sys::Date;
 use photon_rs::pipeline::Pipeline;
 use photon_rs::PhotonImage;
@@ -8,8 +9,8 @@ macro_rules! log {
     ($($t:tt)*) => (web_sys::console::log_1(&format!($($t)*).into()))
 }
 
-const IMAGES: &[(&str, &[u8])] = &[
-    ("Lena 512x512\t", include_bytes!("../assets/lena.png")),
+pub const DEFAULT_IMAGES: &[(&str, &[u8])] = &[
+    ("Lena 512x512", include_bytes!("../assets/lena.png")),
     ("Perlin 512x512", include_bytes!("../assets/512x512.png")),
     ("Perlin 1000x500", include_bytes!("../assets/1000x500.png")),
     ("Perlin 1280x720", include_bytes!("../assets/1280x720.png")),
@@ -18,8 +19,22 @@ const IMAGES: &[(&str, &[u8])] = &[
         include_bytes!("../assets/1920x1080.png"),
     ),
 ];
-const ITERS: u32 = 500;
-const WARMUP: u32 = 200;
+
+const DEFAULT_ITERS: u32 = 500;
+const DEFAULT_WARMUP: u32 = 200;
+
+pub const DEFAULT_BENCH_CONFIG: BenchConfig = BenchConfig {
+    images: DEFAULT_IMAGES,
+    iterations: DEFAULT_ITERS,
+    warmups: DEFAULT_WARMUP,
+};
+
+#[derive(Clone, Copy)]
+pub struct BenchConfig {
+    pub images: &'static [(&'static str, &'static [u8])],
+    pub iterations: u32,
+    pub warmups: u32,
+}
 
 pub struct Bench {
     pub name: &'static str,
@@ -46,7 +61,11 @@ fn load_image(bytes: &[u8]) -> PhotonImage {
     PhotonImage::new(rgba.into_raw(), width, height)
 }
 
-fn validate_and_measure(bench: &Bench, img: &PhotonImage) -> (f64, f64) {
+fn validate_and_measure(
+    bench: &Bench,
+    img: &PhotonImage,
+    config: BenchConfig,
+) -> (f64, f64) {
     // Correctness check: original and pipeline must have the same output
     let mut original_out = img.clone();
     let mut pipeline_out = img.clone();
@@ -66,37 +85,41 @@ fn validate_and_measure(bench: &Bench, img: &PhotonImage) -> (f64, f64) {
     // Original
     // Not timed, warm-up
     let mut img_clone = img.clone();
-    for _ in 0..WARMUP {
+    for _ in 0..config.warmups {
         (bench.original)(&mut img_clone);
     }
 
     // Timed
     let mut img_clone = img.clone();
     let start = Date::now();
-    for _ in 0..ITERS {
+    for _ in 0..config.iterations {
         (bench.original)(&mut img_clone);
     }
-    let original_ms = (Date::now() - start) / ITERS as f64;
+    let original_ms = (Date::now() - start) / config.iterations as f64;
 
     // Pipeline
     // Not timed, warm-up
     let mut img_clone = img.clone();
-    for _ in 0..WARMUP {
+    for _ in 0..config.warmups {
         (bench.pipeline)(&mut img_clone);
     }
 
     // Timed
     let mut img_clone = img.clone();
     let start = Date::now();
-    for _ in 0..ITERS {
+    for _ in 0..config.iterations {
         (bench.pipeline)(&mut img_clone);
     }
-    let pipeline_ms = (Date::now() - start) / ITERS as f64;
+    let pipeline_ms = (Date::now() - start) / config.iterations as f64;
 
     (original_ms, pipeline_ms)
 }
 
 pub fn bench(benches: Vec<Bench>) {
+    bench_with_config(benches, DEFAULT_BENCH_CONFIG);
+}
+
+pub fn bench_with_config(benches: Vec<Bench>, config: BenchConfig) {
     let variant = if cfg!(all(target_arch = "wasm32", target_feature = "simd128")) {
         "pipeline variant: SIMD"
     } else {
@@ -104,15 +127,22 @@ pub fn bench(benches: Vec<Bench>) {
     };
     log!("{}", variant);
 
-    log!("| benchmark\t\t\t| size\t\t\t| original (ms)\t| pipeline (ms)\t| speedup |");
-    log!("|-------------------------------------------------------------------------------------------------|");
+    log!(
+        "| {:<24} | {:<16} | {:>13} | {:>13} | {:>7} |",
+        "benchmark",
+        "size",
+        "original (ms)",
+        "pipeline (ms)",
+        "speedup"
+    );
+    log!("|--------------------------|------------------|---------------|---------------|---------|");
 
     for bench in &benches {
-        for (name, bytes) in IMAGES {
+        for (name, bytes) in config.images {
             let img = load_image(bytes);
-            let (original_ms, pipeline_ms) = validate_and_measure(&bench, &img);
+            let (original_ms, pipeline_ms) = validate_and_measure(bench, &img, config);
             log!(
-                "| {}\t\t\t| {}\t| {:.4}\t| {:.4}\t| {:.2}x   |",
+                "| {:<24} | {:<16} | {:>13.4} | {:>13.4} | {:>6.2}x |",
                 bench.name,
                 name,
                 original_ms,
@@ -120,6 +150,6 @@ pub fn bench(benches: Vec<Bench>) {
                 original_ms / pipeline_ms
             );
         }
-        log!("|-------------------------------------------------------------------------------------------------|");
+        log!("|--------------------------|------------------|---------------|---------------|---------|");
     }
 }
