@@ -1,5 +1,15 @@
 use crate::pipeline::{Pipeline, PlanarImage};
 
+mod common;
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod box_blur_simd;
+
+use common::restore_alpha_if_filter_zeroed_it;
+
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use box_blur_simd::box_blur_3x3_simd;
+
 const NOISE_REDUCTION: [f32; 9] = [0.0, -1.0, 7.0, -1.0, 5.0, 9.0, 0.0, 7.0, 9.0];
 const SHARPEN: [f32; 9] = [0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0];
 const EDGE_DETECTION: [f32; 9] = [-1.0, -1.0, -1.0, -1.0, 8.0, -1.0, -1.0, -1.0, -1.0];
@@ -32,7 +42,16 @@ impl Pipeline {
     }
 
     pub fn box_blur(mut self) -> Self {
-        self.apply_separable_3x3([1.0, 1.0, 1.0], [1.0, 1.0, 1.0]);
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        unsafe {
+            self.apply_box_blur_simd();
+        }
+
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        {
+            self.apply_separable_3x3([1.0, 1.0, 1.0], [1.0, 1.0, 1.0]);
+        }
+
         self
     }
 
@@ -115,6 +134,20 @@ impl Pipeline {
         let f32_scratch = self.f32_scratch.as_mut().unwrap();
 
         convolve_separable_3x3(&self.image, scratch, f32_scratch, horizontal, vertical);
+        std::mem::swap(&mut self.image, scratch);
+    }
+
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    #[target_feature(enable = "simd128")]
+    unsafe fn apply_box_blur_simd(&mut self) {
+        self.flush_pixel_ops();
+        self.ensure_scratch();
+        self.ensure_u16_scratch();
+
+        let scratch = self.scratch.as_mut().unwrap();
+        let u16_scratch = self.u16_scratch.as_mut().unwrap();
+
+        box_blur_3x3_simd(&self.image, scratch, u16_scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 }
@@ -245,26 +278,6 @@ fn convolve_separable_3x3_channel(
                 + scratch[bot + x] * vertical[2];
 
             dst[mid + x] = (value / divisor).clamp(0.0, 255.0) as u8;
-        }
-    }
-}
-
-/// We have added this function to stay compatible with the library
-fn restore_alpha_if_filter_zeroed_it(
-    src: &PlanarImage,
-    dst: &mut PlanarImage,
-    width: usize,
-    height: usize,
-) {
-    if !dst.a.iter().all(|alpha| *alpha == 0) {
-        return;
-    }
-
-    for y in 0..height.saturating_sub(1) {
-        let row = y * width;
-
-        for x in 0..width.saturating_sub(1) {
-            dst.a[row + x] = src.a[row + x];
         }
     }
 }
