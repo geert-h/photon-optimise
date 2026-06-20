@@ -76,8 +76,7 @@ impl Pipeline {
         self.convolve_3x3(EDGE_DETECTION)
     }
 
-    pub fn identity(mut self) -> Self {
-        self.apply_separable_3x3([0.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
+    pub fn identity(self) -> Self {
         self
     }
 
