@@ -1,14 +1,19 @@
 use crate::pipeline::{Pipeline, PlanarImage};
 
+#[macro_use]
 mod common;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 mod box_blur_simd;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod sobel_simd;
 
 use common::restore_alpha_if_filter_zeroed_it;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use box_blur_simd::box_blur_3x3_simd;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use sobel_simd::sobel_horizontal_simd;
 
 const NOISE_REDUCTION: [f32; 9] = [0.0, -1.0, 7.0, -1.0, 5.0, 9.0, 0.0, 7.0, 9.0];
 const SHARPEN: [f32; 9] = [0.0, -1.0, 0.0, -1.0, 5.0, -1.0, 0.0, -1.0, 0.0];
@@ -103,7 +108,16 @@ impl Pipeline {
     }
 
     pub fn sobel_horizontal(mut self) -> Self {
-        self.apply_separable_3x3([1.0, 2.0, 1.0], [-1.0, 0.0, 1.0]);
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        unsafe {
+            self.apply_sobel_horizontal_simd();
+        }
+
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        {
+            self.apply_separable_3x3([1.0, 2.0, 1.0], [-1.0, 0.0, 1.0]);
+        }
+
         self
     }
 
@@ -148,6 +162,20 @@ impl Pipeline {
         let u16_scratch = self.u16_scratch.as_mut().unwrap();
 
         box_blur_3x3_simd(&self.image, scratch, u16_scratch);
+        std::mem::swap(&mut self.image, scratch);
+    }
+
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    #[target_feature(enable = "simd128")]
+    unsafe fn apply_sobel_horizontal_simd(&mut self) {
+        self.flush_pixel_ops();
+        self.ensure_scratch();
+        self.ensure_u16_scratch();
+
+        let scratch = self.scratch.as_mut().unwrap();
+        let u16_scratch = self.u16_scratch.as_mut().unwrap();
+
+        sobel_horizontal_simd(&self.image, scratch, u16_scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 }
