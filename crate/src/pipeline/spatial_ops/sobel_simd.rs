@@ -99,3 +99,100 @@ unsafe fn sobel_horizontal_channel_simd(
         }
     }
 }
+
+#[target_feature(enable = "simd128")]
+pub(super) unsafe fn sobel_vertical_simd(src: &PlanarImage, dst: &mut PlanarImage) {
+    let width = src.width() as usize;
+    let height = src.height() as usize;
+
+    dst.r.fill(0);
+    dst.g.fill(0);
+    dst.b.fill(0);
+    dst.a.fill(0);
+
+    sobel_vertical_channel_simd(&src.r, &mut dst.r, width, height);
+    sobel_vertical_channel_simd(&src.g, &mut dst.g, width, height);
+    sobel_vertical_channel_simd(&src.b, &mut dst.b, width, height);
+    sobel_vertical_channel_simd(&src.a, &mut dst.a, width, height);
+    restore_alpha_if_filter_zeroed_it(src, dst, width, height);
+}
+
+#[target_feature(enable = "simd128")]
+unsafe fn sobel_vertical_channel_simd(
+    src: &[u8],
+    dst: &mut [u8],
+    width: usize,
+    height: usize,
+) {
+    use core::arch::wasm32::*;
+
+    if width < 3 || height < 3 {
+        return;
+    }
+
+    for y in 1..height - 1 {
+        let top = (y - 1) * width;
+        let mid = y * width;
+        let bot = (y + 1) * width;
+        let mut x = 1;
+
+        while x + 16 <= width - 1 {
+            // We have to do more work than the horizontal pass because the data is not contiguous
+            let top_left = v128_load(src.as_ptr().add(top + x - 1) as *const v128);
+            let top_right = v128_load(src.as_ptr().add(top + x + 1) as *const v128);
+            let mid_left = v128_load(src.as_ptr().add(mid + x - 1) as *const v128);
+            let mid_right = v128_load(src.as_ptr().add(mid + x + 1) as *const v128);
+            let bot_left = v128_load(src.as_ptr().add(bot + x - 1) as *const v128);
+            let bot_right = v128_load(src.as_ptr().add(bot + x + 1) as *const v128);
+
+            let top_diff_lo = i16x8_sub(
+                u16x8_extend_low_u8x16(top_right),
+                u16x8_extend_low_u8x16(top_left),
+            );
+            let top_diff_hi = i16x8_sub(
+                u16x8_extend_high_u8x16(top_right),
+                u16x8_extend_high_u8x16(top_left),
+            );
+            let mid_diff_lo = i16x8_sub(
+                u16x8_extend_low_u8x16(mid_right),
+                u16x8_extend_low_u8x16(mid_left),
+            );
+            let mid_diff_hi = i16x8_sub(
+                u16x8_extend_high_u8x16(mid_right),
+                u16x8_extend_high_u8x16(mid_left),
+            );
+            let bot_diff_lo = i16x8_sub(
+                u16x8_extend_low_u8x16(bot_right),
+                u16x8_extend_low_u8x16(bot_left),
+            );
+            let bot_diff_hi = i16x8_sub(
+                u16x8_extend_high_u8x16(bot_right),
+                u16x8_extend_high_u8x16(bot_left),
+            );
+
+            let value_lo = i16x8_add(
+                i16x8_add(top_diff_lo, i16x8_add(mid_diff_lo, mid_diff_lo)),
+                bot_diff_lo,
+            );
+            let value_hi = i16x8_add(
+                i16x8_add(top_diff_hi, i16x8_add(mid_diff_hi, mid_diff_hi)),
+                bot_diff_hi,
+            );
+            let out = u8x16_narrow_i16x8(value_lo, value_hi);
+
+            v128_store(dst.as_mut_ptr().add(mid + x) as *mut v128, out);
+
+            x += 16;
+        }
+
+        while x < width - 1 {
+            let top_diff = src[top + x + 1] as i32 - src[top + x - 1] as i32;
+            let mid_diff = src[mid + x + 1] as i32 - src[mid + x - 1] as i32;
+            let bot_diff = src[bot + x + 1] as i32 - src[bot + x - 1] as i32;
+            let value = top_diff + 2 * mid_diff + bot_diff;
+
+            dst[mid + x] = value.clamp(0, 255) as u8;
+            x += 1;
+        }
+    }
+}
