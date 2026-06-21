@@ -8,6 +8,8 @@ mod box_blur_simd;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 mod line_detection;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+mod prewitt_simd;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 mod sobel_simd;
 
 use common::restore_alpha_if_filter_zeroed_it;
@@ -16,6 +18,8 @@ use common::restore_alpha_if_filter_zeroed_it;
 use box_blur_simd::box_blur_3x3_simd;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use line_detection::{detect_horizontal_lines_simd, detect_vertical_lines_simd};
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use prewitt_simd::prewitt_horizontal_simd;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use sobel_simd::{sobel_horizontal_simd, sobel_vertical_simd};
 
@@ -29,6 +33,7 @@ const DETECT_135_DEG_LINES: [f32; 9] =
 const LAPLACE: [f32; 9] = [0.0, -1.0, 0.0, -1.0, 4.0, -1.0, 0.0, -1.0, 0.0];
 const EDGE_ONE: [f32; 9] = [0.0, -2.2, -0.6, -0.4, 2.8, -0.3, -0.8, -1.0, 2.7];
 const EMBOSS: [f32; 9] = [-2.0, -1.0, 0.0, -1.0, 1.0, 1.0, 0.0, 1.0, 2.0];
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
 const PREWITT_HORIZONTAL: [f32; 9] = [5.0, -3.0, -3.0, 5.0, 0.0, -3.0, 5.0, -3.0, -3.0];
 
 impl Pipeline {
@@ -44,10 +49,6 @@ impl Pipeline {
     ) -> Self {
         self.apply_separable_3x3(horizontal, vertical);
         self
-    }
-
-    pub fn blur_3x3(self) -> Self {
-        self.box_blur()
     }
 
     pub fn box_blur(mut self) -> Self {
@@ -142,8 +143,18 @@ impl Pipeline {
         self
     }
 
-    pub fn prewitt_horizontal(self) -> Self {
-        self.convolve_3x3(PREWITT_HORIZONTAL)
+    pub fn prewitt_horizontal(mut self) -> Self {
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        unsafe {
+            self.apply_prewitt_horizontal_simd();
+        }
+
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        {
+            self.apply_direct_3x3(PREWITT_HORIZONTAL);
+        }
+
+        self
     }
 
     pub fn sobel_vertical(mut self) -> Self {
@@ -186,12 +197,12 @@ impl Pipeline {
     unsafe fn apply_box_blur_simd(&mut self) {
         self.flush_pixel_ops();
         self.ensure_scratch();
-        self.ensure_u16_scratch();
+        self.ensure_i16_scratch();
 
         let scratch = self.scratch.as_mut().unwrap();
-        let u16_scratch = self.u16_scratch.as_mut().unwrap();
+        let i16_scratch = self.i16_scratch.as_mut().unwrap();
 
-        box_blur_3x3_simd(&self.image, scratch, u16_scratch);
+        box_blur_3x3_simd(&self.image, scratch, i16_scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 
@@ -200,12 +211,12 @@ impl Pipeline {
     unsafe fn apply_sobel_horizontal_simd(&mut self) {
         self.flush_pixel_ops();
         self.ensure_scratch();
-        self.ensure_u16_scratch();
+        self.ensure_i16_scratch();
 
         let scratch = self.scratch.as_mut().unwrap();
-        let u16_scratch = self.u16_scratch.as_mut().unwrap();
+        let i16_scratch = self.i16_scratch.as_mut().unwrap();
 
-        sobel_horizontal_simd(&self.image, scratch, u16_scratch);
+        sobel_horizontal_simd(&self.image, scratch, i16_scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 
@@ -214,10 +225,12 @@ impl Pipeline {
     unsafe fn apply_sobel_vertical_simd(&mut self) {
         self.flush_pixel_ops();
         self.ensure_scratch();
+        self.ensure_i16_scratch();
 
         let scratch = self.scratch.as_mut().unwrap();
+        let i16_scratch = self.i16_scratch.as_mut().unwrap();
 
-        sobel_vertical_simd(&self.image, scratch);
+        sobel_vertical_simd(&self.image, scratch, i16_scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 
@@ -226,12 +239,12 @@ impl Pipeline {
     unsafe fn apply_detect_horizontal_lines_simd(&mut self) {
         self.flush_pixel_ops();
         self.ensure_scratch();
-        self.ensure_u16_scratch();
+        self.ensure_i16_scratch();
 
         let scratch = self.scratch.as_mut().unwrap();
-        let u16_scratch = self.u16_scratch.as_mut().unwrap();
+        let i16_scratch = self.i16_scratch.as_mut().unwrap();
 
-        detect_horizontal_lines_simd(&self.image, scratch, u16_scratch);
+        detect_horizontal_lines_simd(&self.image, scratch, i16_scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 
@@ -244,6 +257,18 @@ impl Pipeline {
         let scratch = self.scratch.as_mut().unwrap();
 
         detect_vertical_lines_simd(&self.image, scratch);
+        std::mem::swap(&mut self.image, scratch);
+    }
+
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    #[target_feature(enable = "simd128")]
+    unsafe fn apply_prewitt_horizontal_simd(&mut self) {
+        self.flush_pixel_ops();
+        self.ensure_scratch();
+
+        let scratch = self.scratch.as_mut().unwrap();
+
+        prewitt_horizontal_simd(&self.image, scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 }

@@ -31,7 +31,7 @@ fn run_pipeline_benchmarks() {
         Bench {
             name: "box_blur_3x3",
             original: Box::new(|img| box_blur(img)),
-            pipeline: pipeline_to_fn(|p| p.blur_3x3()),
+            pipeline: pipeline_to_fn(|p| p.box_blur()),
         },
         // Multiple chained operations.
         Bench {

@@ -20,7 +20,7 @@ pub struct Pipeline {
     pub(super) scratch: Option<PlanarImage>,
     pub(super) f32_scratch: Option<Vec<f32>>,
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    pub(super) u16_scratch: Option<Vec<u16>>,
+    pub(super) i16_scratch: Option<Vec<i16>>,
     pub(super) pending: Vec<PixelOp>,
 }
 
@@ -32,7 +32,7 @@ impl Pipeline {
             scratch: None,
             f32_scratch: None,
             #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-            u16_scratch: None,
+            i16_scratch: None,
             pending: Vec::new(),
         }
     }
@@ -55,9 +55,9 @@ impl Pipeline {
     }
 
     #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    pub(super) fn ensure_u16_scratch(&mut self) {
-        if self.u16_scratch.is_none() {
-            self.u16_scratch = Some(vec![0; self.image.len()]);
+    pub(super) fn ensure_i16_scratch(&mut self) {
+        if self.i16_scratch.is_none() {
+            self.i16_scratch = Some(vec![0; self.image.len()]);
         }
     }
 

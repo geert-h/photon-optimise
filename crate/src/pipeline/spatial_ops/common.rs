@@ -31,8 +31,8 @@ pub(super) unsafe fn div_u16x8_by_magic_simd(
     // so widen to u32x4, multiply there, shift, then narrow back to u16x8.
     let lo = u32x4_extend_low_u16x8(values);
     let hi = u32x4_extend_high_u16x8(values);
-    let div_lo = u32x4_shr(i32x4_mul(lo, magic), 16);
-    let div_hi = u32x4_shr(i32x4_mul(hi, magic), 16);
+    let div_lo = u32x4_shr(u32x4_mul(lo, magic), 16);
+    let div_hi = u32x4_shr(u32x4_mul(hi, magic), 16);
 
     u16x8_narrow_i32x4(div_lo, div_hi)
 }

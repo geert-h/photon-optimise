@@ -6,7 +6,7 @@ use super::common::restore_alpha_if_filter_zeroed_it;
 pub(super) unsafe fn box_blur_3x3_simd(
     src: &PlanarImage,
     dst: &mut PlanarImage,
-    scratch: &mut [u16],
+    scratch: &mut [i16],
 ) {
     let width = src.width() as usize;
     let height = src.height() as usize;
@@ -27,7 +27,7 @@ pub(super) unsafe fn box_blur_3x3_simd(
 unsafe fn box_blur_3x3_channel_simd(
     src: &[u8],
     dst: &mut [u8],
-    scratch: &mut [u16],
+    scratch: &mut [i16],
     width: usize,
     height: usize,
 ) {
@@ -46,16 +46,16 @@ unsafe fn box_blur_3x3_channel_simd(
             let center = v128_load(src.as_ptr().add(row + x) as *const v128);
             let right = v128_load(src.as_ptr().add(row + x + 1) as *const v128);
 
-            let sum_lo = u16x8_add(
-                u16x8_add(u16x8_extend_low_u8x16(left), u16x8_extend_low_u8x16(center)),
-                u16x8_extend_low_u8x16(right),
+            let sum_lo = i16x8_add(
+                i16x8_add(i16x8_extend_low_u8x16(left), i16x8_extend_low_u8x16(center)),
+                i16x8_extend_low_u8x16(right),
             );
-            let sum_hi = u16x8_add(
-                u16x8_add(
-                    u16x8_extend_high_u8x16(left),
-                    u16x8_extend_high_u8x16(center),
+            let sum_hi = i16x8_add(
+                i16x8_add(
+                    i16x8_extend_high_u8x16(left),
+                    i16x8_extend_high_u8x16(center),
                 ),
-                u16x8_extend_high_u8x16(right),
+                i16x8_extend_high_u8x16(right),
             );
 
             v128_store(scratch.as_mut_ptr().add(row + x) as *mut v128, sum_lo);
@@ -66,7 +66,7 @@ unsafe fn box_blur_3x3_channel_simd(
 
         while x < width - 1 {
             scratch[row + x] =
-                src[row + x - 1] as u16 + src[row + x] as u16 + src[row + x + 1] as u16;
+                src[row + x - 1] as i16 + src[row + x] as i16 + src[row + x + 1] as i16;
             x += 1;
         }
     }
