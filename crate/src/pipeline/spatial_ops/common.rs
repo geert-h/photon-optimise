@@ -52,8 +52,9 @@ const fn magic_u16_division_is_exact(
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 macro_rules! div_const_u16x8_simd {
     ($values:expr, $divisor:literal) => {{
-        const MAGIC: u32 = super::common::magic_u16_divisor($divisor);
-        super::common::div_u16x8_by_magic_simd($values, MAGIC)
+        const MAGIC: u32 =
+            crate::pipeline::spatial_ops::common::magic_u16_divisor($divisor);
+        crate::pipeline::spatial_ops::common::div_u16x8_by_magic_simd($values, MAGIC)
     }};
 }
 

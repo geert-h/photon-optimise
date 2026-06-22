@@ -1,26 +1,24 @@
 use crate::pipeline::{Pipeline, PlanarImage};
 
 #[macro_use]
-mod common;
-
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-mod box_blur_simd;
+pub(crate) mod common;
 
 #[macro_use]
 mod direct_3x3;
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-mod line_detection;
-#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-mod sobel_simd;
+mod separable;
 
 use common::restore_alpha_if_filter_zeroed_it;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-use box_blur_simd::box_blur_3x3_simd;
+use direct_3x3::edge_one_simd::edge_one_simd;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-use line_detection::{detect_horizontal_lines_simd, detect_vertical_lines_simd};
+use separable::box_blur_simd::box_blur_3x3_simd;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-use sobel_simd::{sobel_horizontal_simd, sobel_vertical_simd};
+use separable::line_detection::{
+    detect_horizontal_lines_simd, detect_vertical_lines_simd,
+};
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use separable::sobel_simd::{sobel_horizontal_simd, sobel_vertical_simd};
 
 #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
 const NOISE_REDUCTION: [f32; 9] = [0.0, -1.0, 7.0, -1.0, 5.0, 9.0, 0.0, 7.0, 9.0];
@@ -36,6 +34,7 @@ const DETECT_135_DEG_LINES: [f32; 9] =
     [2.0, -1.0, -1.0, -1.0, 2.0, -1.0, -1.0, -1.0, 2.0];
 #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
 const LAPLACE: [f32; 9] = [0.0, -1.0, 0.0, -1.0, 4.0, -1.0, 0.0, -1.0, 0.0];
+#[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
 const EDGE_ONE: [f32; 9] = [0.0, -2.2, -0.6, -0.4, 2.8, -0.3, -0.8, -1.0, 2.7];
 
 #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -188,8 +187,18 @@ impl Pipeline {
         self
     }
 
-    pub fn edge_one(self) -> Self {
-        self.convolve_3x3(EDGE_ONE)
+    pub fn edge_one(mut self) -> Self {
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        unsafe {
+            self.apply_edge_one_simd();
+        }
+
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        {
+            self = self.convolve_3x3(EDGE_ONE);
+        }
+
+        self
     }
 
     pub fn emboss(mut self) -> Self {
@@ -334,6 +343,18 @@ impl Pipeline {
         let scratch = self.scratch.as_mut().unwrap();
 
         detect_vertical_lines_simd(&self.image, scratch);
+        std::mem::swap(&mut self.image, scratch);
+    }
+
+    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+    #[target_feature(enable = "simd128")]
+    unsafe fn apply_edge_one_simd(&mut self) {
+        self.flush_pixel_ops();
+        self.ensure_scratch();
+
+        let scratch = self.scratch.as_mut().unwrap();
+
+        edge_one_simd(&self.image, scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 }

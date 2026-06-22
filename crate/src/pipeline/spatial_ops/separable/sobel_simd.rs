@@ -1,9 +1,9 @@
 use crate::pipeline::PlanarImage;
 
-use super::common::restore_alpha_if_filter_zeroed_it;
+use crate::pipeline::spatial_ops::common::restore_alpha_if_filter_zeroed_it;
 
 #[target_feature(enable = "simd128")]
-pub(super) unsafe fn sobel_horizontal_simd(
+pub(in crate::pipeline::spatial_ops) unsafe fn sobel_horizontal_simd(
     src: &PlanarImage,
     dst: &mut PlanarImage,
     scratch: &mut [i16],
@@ -101,7 +101,7 @@ unsafe fn sobel_horizontal_channel_simd(
 }
 
 #[target_feature(enable = "simd128")]
-pub(super) unsafe fn sobel_vertical_simd(
+pub(in crate::pipeline::spatial_ops) unsafe fn sobel_vertical_simd(
     src: &PlanarImage,
     dst: &mut PlanarImage,
     scratch: &mut [i16],

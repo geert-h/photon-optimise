@@ -10,6 +10,8 @@ mod kernel;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 #[macro_use]
 mod channel;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+pub mod edge_one_simd;
 
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 macro_rules! apply_direct_3x3_simd {
