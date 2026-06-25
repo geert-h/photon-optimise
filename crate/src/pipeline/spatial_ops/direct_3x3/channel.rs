@@ -5,10 +5,13 @@ macro_rules! direct_3x3_simd_channel {
         $dst:expr,
         $width:expr,
         $height:expr,
-        [$k0:expr, $k1:expr, $k2:expr,
-         $k3:expr, $k4:expr, $k5:expr,
-         $k6:expr, $k7:expr, $k8:expr $(,)?]
+        raw [$($kernel:tt)+],
+        expr [$k0:expr, $k1:expr, $k2:expr,
+              $k3:expr, $k4:expr, $k5:expr,
+              $k6:expr, $k7:expr, $k8:expr $(,)?]
     ) => {{
+        #[allow(unused_variables)]
+        {
         use core::arch::wasm32::*;
 
         let src = $src;
@@ -48,7 +51,7 @@ macro_rules! direct_3x3_simd_channel {
                         v128_load(src.as_ptr().add(bot + x + 1) as *const v128);
 
                     let lo = kernel_3x3_i16x8!(
-                        [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8],
+                        [$($kernel)+],
                         [
                             i16x8_extend_low_u8x16(top_left),
                             i16x8_extend_low_u8x16(top_center),
@@ -63,7 +66,7 @@ macro_rules! direct_3x3_simd_channel {
                     );
 
                     let hi = kernel_3x3_i16x8!(
-                        [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8],
+                        [$($kernel)+],
                         [
                             i16x8_extend_high_u8x16(top_left),
                             i16x8_extend_high_u8x16(top_center),
@@ -84,26 +87,22 @@ macro_rules! direct_3x3_simd_channel {
                 }
 
                 while x < width - 1 {
-                    let value = scalar_kernel_3x3_i32!(
-                        [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8],
-                        [
-                            src[top + x - 1] as i32,
-                            src[top + x] as i32,
-                            src[top + x + 1] as i32,
-                            src[mid + x - 1] as i32,
-                            src[mid + x] as i32,
-                            src[mid + x + 1] as i32,
-                            src[bot + x - 1] as i32,
-                            src[bot + x] as i32,
-                            src[bot + x + 1] as i32
-                        ]
-                    );
+                    let value = src[top + x - 1] as i32 * $k0
+                        + src[top + x] as i32 * $k1
+                        + src[top + x + 1] as i32 * $k2
+                        + src[mid + x - 1] as i32 * $k3
+                        + src[mid + x] as i32 * $k4
+                        + src[mid + x + 1] as i32 * $k5
+                        + src[bot + x - 1] as i32 * $k6
+                        + src[bot + x] as i32 * $k7
+                        + src[bot + x + 1] as i32 * $k8;
 
                     let value = value / DIVISOR as i32;
                     dst[mid + x] = value.clamp(0, 255) as u8;
                     x += 1;
                 }
             }
+        }
         }
     }};
 }

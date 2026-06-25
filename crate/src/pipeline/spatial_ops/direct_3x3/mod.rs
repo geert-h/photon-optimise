@@ -17,9 +17,7 @@ pub mod edge_one_simd;
 macro_rules! apply_direct_3x3_simd {
     (
         $pipeline:ident,
-        [$k0:expr, $k1:expr, $k2:expr,
-         $k3:expr, $k4:expr, $k5:expr,
-         $k6:expr, $k7:expr, $k8:expr $(,)?]
+        [$($kernel:tt)+]
     ) => {{
         $pipeline.flush_pixel_ops();
         $pipeline.ensure_scratch();
@@ -38,28 +36,32 @@ macro_rules! apply_direct_3x3_simd {
             &mut scratch.r,
             width,
             height,
-            [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8]
+            raw [$($kernel)+],
+            expr [$($kernel)+]
         );
         direct_3x3_simd_channel!(
             &$pipeline.image.g,
             &mut scratch.g,
             width,
             height,
-            [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8]
+            raw [$($kernel)+],
+            expr [$($kernel)+]
         );
         direct_3x3_simd_channel!(
             &$pipeline.image.b,
             &mut scratch.b,
             width,
             height,
-            [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8]
+            raw [$($kernel)+],
+            expr [$($kernel)+]
         );
         direct_3x3_simd_channel!(
             &$pipeline.image.a,
             &mut scratch.a,
             width,
             height,
-            [$k0, $k1, $k2, $k3, $k4, $k5, $k6, $k7, $k8]
+            raw [$($kernel)+],
+            expr [$($kernel)+]
         );
 
         restore_alpha_if_filter_zeroed_it(&$pipeline.image, scratch, width, height);

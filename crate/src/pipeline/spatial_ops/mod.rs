@@ -6,6 +6,7 @@ pub(crate) mod common;
 #[macro_use]
 mod direct_3x3;
 mod separable;
+mod sobel_global;
 
 use common::restore_alpha_if_filter_zeroed_it;
 
@@ -60,7 +61,15 @@ impl Pipeline {
     pub fn box_blur(mut self) -> Self {
         #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         unsafe {
-            self.apply_box_blur_simd();
+            self.flush_pixel_ops();
+            self.ensure_scratch();
+            self.ensure_i16_scratch();
+
+            let scratch = self.scratch.as_mut().unwrap();
+            let i16_scratch = self.i16_scratch.as_mut().unwrap();
+
+            box_blur_3x3_simd(&self.image, scratch, i16_scratch);
+            std::mem::swap(&mut self.image, scratch);
         }
 
         #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -120,7 +129,15 @@ impl Pipeline {
     pub fn detect_horizontal_lines(mut self) -> Self {
         #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         unsafe {
-            self.apply_detect_horizontal_lines_simd();
+            self.flush_pixel_ops();
+            self.ensure_scratch();
+            self.ensure_i16_scratch();
+
+            let scratch = self.scratch.as_mut().unwrap();
+            let i16_scratch = self.i16_scratch.as_mut().unwrap();
+
+            detect_horizontal_lines_simd(&self.image, scratch, i16_scratch);
+            std::mem::swap(&mut self.image, scratch);
         }
 
         #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -134,7 +151,13 @@ impl Pipeline {
     pub fn detect_vertical_lines(mut self) -> Self {
         #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         unsafe {
-            self.apply_detect_vertical_lines_simd();
+            self.flush_pixel_ops();
+            self.ensure_scratch();
+
+            let scratch = self.scratch.as_mut().unwrap();
+
+            detect_vertical_lines_simd(&self.image, scratch);
+            std::mem::swap(&mut self.image, scratch);
         }
 
         #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -190,7 +213,13 @@ impl Pipeline {
     pub fn edge_one(mut self) -> Self {
         #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         unsafe {
-            self.apply_edge_one_simd();
+            self.flush_pixel_ops();
+            self.ensure_scratch();
+
+            let scratch = self.scratch.as_mut().unwrap();
+
+            edge_one_simd(&self.image, scratch);
+            std::mem::swap(&mut self.image, scratch);
         }
 
         #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -218,7 +247,15 @@ impl Pipeline {
     pub fn sobel_horizontal(mut self) -> Self {
         #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         unsafe {
-            self.apply_sobel_horizontal_simd();
+            self.flush_pixel_ops();
+            self.ensure_scratch();
+            self.ensure_i16_scratch();
+
+            let scratch = self.scratch.as_mut().unwrap();
+            let i16_scratch = self.i16_scratch.as_mut().unwrap();
+
+            sobel_horizontal_simd(&self.image, scratch, i16_scratch);
+            std::mem::swap(&mut self.image, scratch);
         }
 
         #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
@@ -246,12 +283,34 @@ impl Pipeline {
     pub fn sobel_vertical(mut self) -> Self {
         #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
         unsafe {
-            self.apply_sobel_vertical_simd();
+            self.flush_pixel_ops();
+            self.ensure_scratch();
+            self.ensure_i16_scratch();
+
+            let scratch = self.scratch.as_mut().unwrap();
+            let i16_scratch = self.i16_scratch.as_mut().unwrap();
+
+            sobel_vertical_simd(&self.image, scratch, i16_scratch);
+            std::mem::swap(&mut self.image, scratch);
         }
 
         #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
         {
             self.apply_separable_3x3([-1.0, 0.0, 1.0], [1.0, 2.0, 1.0]);
+        }
+
+        self
+    }
+
+    pub fn sobel_global(mut self) -> Self {
+        #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+        unsafe {
+            self.apply_sobel_global_simd();
+        }
+
+        #[cfg(not(all(target_arch = "wasm32", target_feature = "simd128")))]
+        {
+            self.apply_sobel_global_scalar();
         }
 
         self
@@ -275,86 +334,6 @@ impl Pipeline {
         let f32_scratch = self.f32_scratch.as_mut().unwrap();
 
         convolve_separable_3x3(&self.image, scratch, f32_scratch, horizontal, vertical);
-        std::mem::swap(&mut self.image, scratch);
-    }
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    #[target_feature(enable = "simd128")]
-    unsafe fn apply_box_blur_simd(&mut self) {
-        self.flush_pixel_ops();
-        self.ensure_scratch();
-        self.ensure_i16_scratch();
-
-        let scratch = self.scratch.as_mut().unwrap();
-        let i16_scratch = self.i16_scratch.as_mut().unwrap();
-
-        box_blur_3x3_simd(&self.image, scratch, i16_scratch);
-        std::mem::swap(&mut self.image, scratch);
-    }
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    #[target_feature(enable = "simd128")]
-    unsafe fn apply_sobel_horizontal_simd(&mut self) {
-        self.flush_pixel_ops();
-        self.ensure_scratch();
-        self.ensure_i16_scratch();
-
-        let scratch = self.scratch.as_mut().unwrap();
-        let i16_scratch = self.i16_scratch.as_mut().unwrap();
-
-        sobel_horizontal_simd(&self.image, scratch, i16_scratch);
-        std::mem::swap(&mut self.image, scratch);
-    }
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    #[target_feature(enable = "simd128")]
-    unsafe fn apply_sobel_vertical_simd(&mut self) {
-        self.flush_pixel_ops();
-        self.ensure_scratch();
-        self.ensure_i16_scratch();
-
-        let scratch = self.scratch.as_mut().unwrap();
-        let i16_scratch = self.i16_scratch.as_mut().unwrap();
-
-        sobel_vertical_simd(&self.image, scratch, i16_scratch);
-        std::mem::swap(&mut self.image, scratch);
-    }
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    #[target_feature(enable = "simd128")]
-    unsafe fn apply_detect_horizontal_lines_simd(&mut self) {
-        self.flush_pixel_ops();
-        self.ensure_scratch();
-        self.ensure_i16_scratch();
-
-        let scratch = self.scratch.as_mut().unwrap();
-        let i16_scratch = self.i16_scratch.as_mut().unwrap();
-
-        detect_horizontal_lines_simd(&self.image, scratch, i16_scratch);
-        std::mem::swap(&mut self.image, scratch);
-    }
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    #[target_feature(enable = "simd128")]
-    unsafe fn apply_detect_vertical_lines_simd(&mut self) {
-        self.flush_pixel_ops();
-        self.ensure_scratch();
-
-        let scratch = self.scratch.as_mut().unwrap();
-
-        detect_vertical_lines_simd(&self.image, scratch);
-        std::mem::swap(&mut self.image, scratch);
-    }
-
-    #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
-    #[target_feature(enable = "simd128")]
-    unsafe fn apply_edge_one_simd(&mut self) {
-        self.flush_pixel_ops();
-        self.ensure_scratch();
-
-        let scratch = self.scratch.as_mut().unwrap();
-
-        edge_one_simd(&self.image, scratch);
         std::mem::swap(&mut self.image, scratch);
     }
 }
