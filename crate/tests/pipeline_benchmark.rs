@@ -7,6 +7,7 @@ use common::*;
 use photon_rs::channels::{alter_channels, invert, swap_channels};
 use photon_rs::conv::box_blur;
 use photon_rs::monochrome::{grayscale, monochrome};
+use std::sync::Arc;
 use wasm_bindgen_test::*;
 
 #[wasm_bindgen_test]
@@ -16,22 +17,22 @@ fn run_pipeline_benchmarks() {
         Bench {
             name: "invert",
             original: Box::new(|img| invert(img)),
-            pipeline: pipeline_to_fn(|p| p.invert()),
+            pipeline: Arc::new(|p| p.invert()),
         },
         Bench {
             name: "monochrome",
             original: Box::new(|img| monochrome(img, 40, 50, 100)),
-            pipeline: pipeline_to_fn(|p| p.monochrome(40, 50, 100)),
+            pipeline: Arc::new(|p| p.monochrome(40, 50, 100)),
         },
         Bench {
             name: "swap_channels",
             original: Box::new(|img| swap_channels(img, 0, 2)),
-            pipeline: pipeline_to_fn(|p| p.swap_channels(0, 2)),
+            pipeline: Arc::new(|p| p.swap_channels(0, 2)),
         },
         Bench {
             name: "box_blur_3x3",
             original: Box::new(|img| box_blur(img)),
-            pipeline: pipeline_to_fn(|p| p.box_blur()),
+            pipeline: Arc::new(|p| p.box_blur()),
         },
         // Multiple chained operations.
         Bench {
@@ -40,7 +41,7 @@ fn run_pipeline_benchmarks() {
                 invert(img);
                 alter_channels(img, 20, -10, 5);
             }),
-            pipeline: pipeline_to_fn(|p| p.invert().alter_channels(20, -10, 5)),
+            pipeline: Arc::new(|p| p.invert().alter_channels(20, -10, 5)),
         },
         Bench {
             name: "chain_of_3",
@@ -49,9 +50,7 @@ fn run_pipeline_benchmarks() {
                 invert(img);
                 alter_channels(img, 10, -20, 30);
             }),
-            pipeline: pipeline_to_fn(|p| {
-                p.grayscale().invert().alter_channels(10, -20, 30)
-            }),
+            pipeline: Arc::new(|p| p.grayscale().invert().alter_channels(10, -20, 30)),
         },
         Bench {
             name: "chain_of_4",
@@ -61,7 +60,7 @@ fn run_pipeline_benchmarks() {
                 swap_channels(img, 0, 2);
                 invert(img);
             }),
-            pipeline: pipeline_to_fn(|p| {
+            pipeline: Arc::new(|p| {
                 p.grayscale()
                     .alter_channels(10, -20, 30)
                     .swap_channels(0, 2)
@@ -84,7 +83,7 @@ fn run_pipeline_benchmarks() {
                 invert(img);
                 alter_channels(img, -30, 5, 10);
             }),
-            pipeline: pipeline_to_fn(|p| {
+            pipeline: Arc::new(|p| {
                 p.grayscale()
                     .invert()
                     .alter_channels(10, -20, 30)

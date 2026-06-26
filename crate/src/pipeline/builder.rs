@@ -15,6 +15,7 @@ use super::pixel_ops::{
 use wasm_bindgen::prelude::wasm_bindgen;
 
 #[cfg_attr(feature = "enable_wasm", wasm_bindgen)]
+#[derive(Clone)]
 pub struct Pipeline {
     pub(super) image: PlanarImage,
     pub(super) scratch: Option<PlanarImage>,
@@ -64,6 +65,11 @@ impl Pipeline {
     pub fn finish(mut self) -> PhotonImage {
         self.flush_pixel_ops();
         self.image.to_photon_image()
+    }
+
+    pub fn finish_to_planar(mut self) -> PlanarImage {
+        self.flush_pixel_ops();
+        self.image
     }
 
     pub fn alter_channels(mut self, r: i16, g: i16, b: i16) -> Self {
@@ -180,5 +186,15 @@ impl Pipeline {
         }
 
         self.pending.clear();
+    }
+    // This is only used for isolated benchmarking:
+    // pre-convert once with from_photon_image, then call apply() in a timed loop
+    // to measure op cost without conversion overhead.
+    // This function applies all pending pixel ops in place, then restores them so
+    // the pipeline can be re-applied repeatedly without rebuilding.
+    pub fn apply(&mut self) {
+        let saved = self.pending.clone();
+        self.flush_pixel_ops();
+        self.pending = saved;
     }
 }

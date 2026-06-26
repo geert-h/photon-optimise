@@ -11,8 +11,9 @@ mod sobel_global;
 use common::restore_alpha_if_filter_zeroed_it;
 
 use crate::pipeline::spatial_ops::direct_3x3::convolve_3x3;
-use crate::pipeline::spatial_ops::separable::box_blur_simd::box_blur_3x3_simd;
 use crate::pipeline::spatial_ops::separable::convolve_separable_3x3;
+#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+use crate::pipeline::spatial_ops::separable::box_blur_simd::box_blur_3x3_simd;
 #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
 use direct_3x3::edge_one_simd::edge_one_simd;
 
