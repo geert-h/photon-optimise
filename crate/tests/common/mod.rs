@@ -72,44 +72,58 @@ fn validate_and_measure(
     (bench.original)(&mut original_out);
     (bench.pipeline)(&mut pipeline_out);
     if bench.name != "identity" {
-        assert_eq!(
-            original_out.get_raw_pixels(),
-            pipeline_out.get_raw_pixels(),
-            "{}: original/pipeline output mismatch at {}x{}",
-            bench.name,
-            img.get_width(),
-            img.get_height()
-        );
+        let original_pixels = original_out.get_raw_pixels();
+        let pipeline_pixels = pipeline_out.get_raw_pixels();
+        for (i, (&a, &b)) in original_pixels
+            .iter()
+            .zip(pipeline_pixels.iter())
+            .enumerate()
+        {
+            if a != b {
+                let pixel_index = i / 4;
+                let x = pixel_index as u32 % img.get_width();
+                let y = pixel_index as u32 / img.get_width();
+                log!(
+                    "{}: first mismatch at pixel ({}, {}), original={}, pipeline={}",
+                    bench.name,
+                    x,
+                    y,
+                    a,
+                    b
+                );
+                panic!();
+            }
+        }
     }
 
     // Benchmark: original vs pipeline
 
     // Original
     // Not timed, warm-up
-    let mut img_clone = img.clone();
     for _ in 0..config.warmups {
+        let mut img_clone = img.clone();
         (bench.original)(&mut img_clone);
     }
 
     // Timed
-    let mut img_clone = img.clone();
     let start = Date::now();
     for _ in 0..config.iterations {
+        let mut img_clone = img.clone();
         (bench.original)(&mut img_clone);
     }
     let original_ms = (Date::now() - start) / config.iterations as f64;
 
     // Pipeline
     // Not timed, warm-up
-    let mut img_clone = img.clone();
     for _ in 0..config.warmups {
+        let mut img_clone = img.clone();
         (bench.pipeline)(&mut img_clone);
     }
 
     // Timed
-    let mut img_clone = img.clone();
     let start = Date::now();
     for _ in 0..config.iterations {
+        let mut img_clone = img.clone();
         (bench.pipeline)(&mut img_clone);
     }
     let pipeline_ms = (Date::now() - start) / config.iterations as f64;
