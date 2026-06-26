@@ -1,13 +1,28 @@
 #![cfg(target_arch = "wasm32")]
 #![allow(dead_code)]
-use js_sys::Date;
 use photon_rs::pipeline::Pipeline;
 use photon_rs::PhotonImage;
 use std::sync::Arc;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 // `println!` doesn't work with Wasm so we make a macro for console logging (with web_sys)
 macro_rules! log {
     ($($t:tt)*) => (web_sys::console::log_1(&format!($($t)*).into()))
+}
+
+// Node.js fs binding and timer
+#[wasm_bindgen(inline_js = r#"
+export function write_file(path, content) {
+    const fs = require('fs');
+    fs.writeFileSync(path, content, 'utf8');
+}
+export function now() {
+    return performance.now();
+}
+"#)]
+extern "C" {
+    fn write_file(path: &str, content: &str);
+    fn now() -> f64;
 }
 
 pub const DEFAULT_IMAGES: &[(&str, &[u8])] = &[
@@ -106,9 +121,9 @@ fn validate_and_measure(
     let mut sum = 0.0;
     for _ in 0..config.iterations {
         let mut img_clone = img.clone();
-        let start = Date::now();
+        let start = now();
         (bench.original)(&mut img_clone);
-        sum += Date::now() - start;
+        sum += now() - start;
     }
     let original_ms = sum / config.iterations as f64;
 
@@ -124,11 +139,11 @@ fn validate_and_measure(
     let mut sum = 0.0;
     for _ in 0..config.iterations {
         let img_clone = img.clone();
-        let start = Date::now();
+        let start = now();
         std::hint::black_box(
             (bench.pipeline)(Pipeline::from_photon_image(&img_clone)).finish(),
         );
-        sum += Date::now() - start;
+        sum += now() - start;
     }
     let pipeline_ms = sum / config.iterations as f64;
 
@@ -143,9 +158,9 @@ fn validate_and_measure(
     let input_planar = Pipeline::from_photon_image(img).finish_to_planar();
     for _ in 0..config.iterations {
         let pipeline = Pipeline::from_planar_image(input_planar.clone());
-        let start = Date::now();
+        let start = now();
         std::hint::black_box((bench.pipeline)(pipeline).finish_to_planar());
-        sum += Date::now() - start;
+        sum += now() - start;
     }
     let isolated_ms = sum / config.iterations as f64;
 
