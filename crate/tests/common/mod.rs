@@ -36,8 +36,8 @@ pub const DEFAULT_IMAGES: &[(&str, &[u8])] = &[
     ),
 ];
 
-pub const DEFAULT_ITERS: u32 = 10;
-pub const DEFAULT_WARMUP: u32 = 10;
+pub const DEFAULT_ITERS: u32 = 100;
+pub const DEFAULT_WARMUP: u32 = 20;
 
 pub const DEFAULT_BENCH_CONFIG: BenchConfig = BenchConfig {
     name: DEFAULT_NAME,
