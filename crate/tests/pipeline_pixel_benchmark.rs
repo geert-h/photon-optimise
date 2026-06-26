@@ -10,8 +10,15 @@ use photon_rs::monochrome::{grayscale, monochrome};
 use std::sync::Arc;
 use wasm_bindgen_test::*;
 
+const PIXEL_BENCH_CONFIG: BenchConfig = BenchConfig {
+    name: "pixel",
+    images: DEFAULT_IMAGES,
+    iterations: 300,
+    warmups: 50,
+};
+
 #[wasm_bindgen_test]
-fn run_pipeline_benchmarks() {
+fn run_pipeline_pixel_benchmarks() {
     let benches = vec![
         // Single operations.
         Bench {
@@ -100,5 +107,5 @@ fn run_pipeline_benchmarks() {
         },
     ];
 
-    bench(benches);
+    bench_with_config(benches, PIXEL_BENCH_CONFIG);
 }

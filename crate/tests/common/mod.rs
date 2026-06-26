@@ -12,9 +12,10 @@ macro_rules! log {
 
 // Node.js fs binding and timer
 #[wasm_bindgen(inline_js = r#"
+import { writeFileSync } from 'fs';
+
 export function write_file(path, content) {
-    const fs = require('fs');
-    fs.writeFileSync(path, content, 'utf8');
+    writeFileSync(path, content, 'utf8');
 }
 export function now() {
     return performance.now();
@@ -24,11 +25,10 @@ extern "C" {
     fn write_file(path: &str, content: &str);
     fn now() -> f64;
 }
+const DEFAULT_NAME: &str = "default";
 
 pub const DEFAULT_IMAGES: &[(&str, &[u8])] = &[
     ("Lena 512x512", include_bytes!("../assets/lena.png")),
-    ("Perlin 512x512", include_bytes!("../assets/512x512.png")),
-    ("Perlin 1000x500", include_bytes!("../assets/1000x500.png")),
     ("Perlin 1280x720", include_bytes!("../assets/1280x720.png")),
     (
         "Perlin 1920x1080",
@@ -36,10 +36,11 @@ pub const DEFAULT_IMAGES: &[(&str, &[u8])] = &[
     ),
 ];
 
-const DEFAULT_ITERS: u32 = 1000;
-const DEFAULT_WARMUP: u32 = 200;
+pub const DEFAULT_ITERS: u32 = 10;
+pub const DEFAULT_WARMUP: u32 = 10;
 
 pub const DEFAULT_BENCH_CONFIG: BenchConfig = BenchConfig {
+    name: DEFAULT_NAME,
     images: DEFAULT_IMAGES,
     iterations: DEFAULT_ITERS,
     warmups: DEFAULT_WARMUP,
@@ -47,6 +48,7 @@ pub const DEFAULT_BENCH_CONFIG: BenchConfig = BenchConfig {
 
 #[derive(Clone, Copy)]
 pub struct BenchConfig {
+    pub name: &'static str,
     pub images: &'static [(&'static str, &'static [u8])],
     pub iterations: u32,
     pub warmups: u32,
@@ -63,6 +65,12 @@ pub struct Bench {
     pub pipeline: Arc<dyn Fn(Pipeline) -> Pipeline>,
 }
 
+struct Samples {
+    original: Vec<f64>,
+    pipeline: Vec<f64>,
+    isolated: Vec<f64>,
+}
+
 fn load_image(bytes: &[u8]) -> PhotonImage {
     let rgba = image::load_from_memory(bytes)
         .expect("Failed to load Lena image")
@@ -77,7 +85,7 @@ fn validate_and_measure(
     bench: &Bench,
     img: &PhotonImage,
     config: BenchConfig,
-) -> (f64, f64, f64) {
+) -> (f64, f64, f64, Samples) {
     // Correctness check: original and pipeline must have the same output
     let mut original_out = img.clone();
     (bench.original)(&mut original_out);
@@ -119,11 +127,14 @@ fn validate_and_measure(
 
     // Timed
     let mut sum = 0.0;
+    let mut original_samples = Vec::with_capacity(config.iterations as usize);
     for _ in 0..config.iterations {
         let mut img_clone = img.clone();
         let start = now();
         (bench.original)(&mut img_clone);
-        sum += now() - start;
+        let time = now() - start;
+        sum += time;
+        original_samples.push(time);
     }
     let original_ms = sum / config.iterations as f64;
 
@@ -137,13 +148,16 @@ fn validate_and_measure(
     }
 
     let mut sum = 0.0;
+    let mut pipeline_samples = Vec::with_capacity(config.iterations as usize);
     for _ in 0..config.iterations {
         let img_clone = img.clone();
         let start = now();
         std::hint::black_box(
             (bench.pipeline)(Pipeline::from_photon_image(&img_clone)).finish(),
         );
-        sum += now() - start;
+        let time = now() - start;
+        sum += time;
+        pipeline_samples.push(time);
     }
     let pipeline_ms = sum / config.iterations as f64;
 
@@ -155,16 +169,28 @@ fn validate_and_measure(
     }
 
     let mut sum = 0.0;
+    let mut isolated_samples = Vec::with_capacity(config.iterations as usize);
     let input_planar = Pipeline::from_photon_image(img).finish_to_planar();
     for _ in 0..config.iterations {
         let pipeline = Pipeline::from_planar_image(input_planar.clone());
         let start = now();
         std::hint::black_box((bench.pipeline)(pipeline).finish_to_planar());
-        sum += now() - start;
+        let time = now() - start;
+        sum += time;
+        isolated_samples.push(time);
     }
     let isolated_ms = sum / config.iterations as f64;
 
-    (original_ms, pipeline_ms, isolated_ms)
+    (
+        original_ms,
+        pipeline_ms,
+        isolated_ms,
+        Samples {
+            original: original_samples,
+            pipeline: pipeline_samples,
+            isolated: isolated_samples,
+        },
+    )
 }
 
 pub fn bench(benches: Vec<Bench>) {
@@ -173,16 +199,16 @@ pub fn bench(benches: Vec<Bench>) {
 
 pub fn bench_with_config(benches: Vec<Bench>, config: BenchConfig) {
     let variant = if cfg!(all(target_arch = "wasm32", target_feature = "simd128")) {
-        "RUNNING BENCHMARK (variant: SIMD)"
+        "SIMD"
     } else {
-        "RUNNING BENCHMARK (variant: scalar)"
+        "scalar"
     };
-    log!("{}", variant);
+    log!("RUNNING BENCHMARK (variant: {})", variant);
 
     log!(
         "| {:<24} | {:<16} | {:>13} | {:>13} | {:>13} | {:>8} | {:>8} |",
         "benchmark",
-        "size",
+        "image",
         "original (ms)",
         "pipeline (ms)",
         "isolated (ms)",
@@ -191,22 +217,47 @@ pub fn bench_with_config(benches: Vec<Bench>, config: BenchConfig) {
     );
     log!("|--------------------------|------------------|---------------|---------------|---------------|--------------|-------------|");
 
+    let mut csv = String::from("benchmark,image,variant,stage,ms\n");
+
     for bench in &benches {
-        for (name, bytes) in config.images {
+        for (image_name, bytes) in config.images {
             let img = load_image(bytes);
-            let (original_ms, pipeline_ms, isolated_ms) =
+            let (original_ms, pipeline_ms, isolated_ms, samples) =
                 validate_and_measure(bench, &img, config);
             log!(
                 "| {:<24} | {:<16} | {:>13.4} | {:>13.4} | {:>13.4} | {:>11.2}x | {:>10.2}x |",
                 bench.name,
-                name,
+                image_name,
                 original_ms,
                 pipeline_ms,
                 isolated_ms,
                 original_ms / pipeline_ms,
                 original_ms / isolated_ms,
             );
+
+            for (_, &ms) in samples.original.iter().enumerate() {
+                csv.push_str(&format!(
+                    "{},{},{},original,{:.6}\n",
+                    bench.name, image_name, variant, ms
+                ));
+            }
+            for (_, &ms) in samples.pipeline.iter().enumerate() {
+                csv.push_str(&format!(
+                    "{},{},{},pipeline,{:.6}\n",
+                    bench.name, image_name, variant, ms
+                ));
+            }
+            for (_, &ms) in samples.isolated.iter().enumerate() {
+                csv.push_str(&format!(
+                    "{},{},{},isolated,{:.6}\n",
+                    bench.name, image_name, variant, ms
+                ));
+            }
         }
         log!("|--------------------------|------------------|---------------|---------------|---------------|--------------|-------------|");
     }
+
+    let filename = format!("../benchmark_{}_{}.csv", config.name, variant);
+    write_file(&filename, &csv);
+    log!("CSV written to {}", filename);
 }

@@ -14,13 +14,9 @@ use photon_rs::conv::{
 use std::sync::Arc;
 use wasm_bindgen_test::*;
 
-pub const SPATIAL_IMAGES: &[(&str, &[u8])] = &[
-    ("Lena 512x512", include_bytes!("assets/lena.png")),
-    ("Perlin 1280x720", include_bytes!("assets/1280x720.png")),
-];
-
 const SPATIAL_BENCH_CONFIG: BenchConfig = BenchConfig {
-    images: SPATIAL_IMAGES,
+    name: "spatial",
+    images: DEFAULT_IMAGES,
     iterations: 50,
     warmups: 10,
 };
