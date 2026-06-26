@@ -37,6 +37,17 @@ impl Pipeline {
         }
     }
 
+    pub fn from_planar_image(img: PlanarImage) -> Self {
+        Pipeline {
+            image: img,
+            scratch: None,
+            f32_scratch: None,
+            #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+            i16_scratch: None,
+            pending: Vec::new(),
+        }
+    }
+
     // This function assumes that the dimensions of the image never change inside the pipeline.
     // If we want to be able to change the dimensions of the image inside the pipeline,
     // then this function must be changed to validate whether the size is still the same for the scratch image
@@ -64,6 +75,11 @@ impl Pipeline {
     pub fn finish(mut self) -> PhotonImage {
         self.flush_pixel_ops();
         self.image.to_photon_image()
+    }
+
+    pub fn finish_to_planar(mut self) -> PlanarImage {
+        self.flush_pixel_ops();
+        self.image
     }
 
     pub fn alter_channels(mut self, r: i16, g: i16, b: i16) -> Self {

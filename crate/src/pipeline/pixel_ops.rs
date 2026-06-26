@@ -3,6 +3,7 @@ use crate::pipeline::Pipeline;
 use std::arch::wasm32::v128;
 
 #[allow(dead_code)]
+#[derive(Clone)]
 pub(super) enum PixelOp {
     GrayScale,
     Monochrome {

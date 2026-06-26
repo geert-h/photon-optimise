@@ -11,15 +11,12 @@ use photon_rs::conv::{
     noise_reduction, prewitt_horizontal, sharpen, sobel_global, sobel_horizontal,
     sobel_vertical,
 };
+use std::sync::Arc;
 use wasm_bindgen_test::*;
 
-pub const SPATIAL_IMAGES: &[(&str, &[u8])] = &[
-    ("Lena 512x512", include_bytes!("assets/lena.png")),
-    ("Perlin 1280x720", include_bytes!("assets/1280x720.png")),
-];
-
 const SPATIAL_BENCH_CONFIG: BenchConfig = BenchConfig {
-    images: SPATIAL_IMAGES,
+    name: "spatial",
+    images: DEFAULT_IMAGES,
     iterations: 50,
     warmups: 10,
 };
@@ -30,82 +27,82 @@ fn run_pipeline_spatial_benchmarks() {
         Bench {
             name: "box_blur",
             original: Box::new(box_blur),
-            pipeline: pipeline_to_fn(|p| p.box_blur()),
+            pipeline: Arc::new(|p| p.box_blur()),
         },
         Bench {
             name: "noise_reduction",
             original: Box::new(noise_reduction),
-            pipeline: pipeline_to_fn(|p| p.noise_reduction()),
+            pipeline: Arc::new(|p| p.noise_reduction()),
         },
         Bench {
             name: "sharpen",
             original: Box::new(sharpen),
-            pipeline: pipeline_to_fn(|p| p.sharpen()),
+            pipeline: Arc::new(|p| p.sharpen()),
         },
         Bench {
             name: "edge_detection",
             original: Box::new(edge_detection),
-            pipeline: pipeline_to_fn(|p| p.edge_detection()),
+            pipeline: Arc::new(|p| p.edge_detection()),
         },
         Bench {
             name: "identity",
             original: Box::new(identity),
-            pipeline: pipeline_to_fn(|p| p.identity()),
+            pipeline: Arc::new(|p| p.identity()),
         },
         Bench {
             name: "detect_horizontal_lines",
             original: Box::new(detect_horizontal_lines),
-            pipeline: pipeline_to_fn(|p| p.detect_horizontal_lines()),
+            pipeline: Arc::new(|p| p.detect_horizontal_lines()),
         },
         Bench {
             name: "detect_vertical_lines",
             original: Box::new(detect_vertical_lines),
-            pipeline: pipeline_to_fn(|p| p.detect_vertical_lines()),
+            pipeline: Arc::new(|p| p.detect_vertical_lines()),
         },
         Bench {
             name: "detect_45_deg_lines",
             original: Box::new(detect_45_deg_lines),
-            pipeline: pipeline_to_fn(|p| p.detect_45_deg_lines()),
+            pipeline: Arc::new(|p| p.detect_45_deg_lines()),
         },
         Bench {
             name: "detect_135_deg_lines",
             original: Box::new(detect_135_deg_lines),
-            pipeline: pipeline_to_fn(|p| p.detect_135_deg_lines()),
+            pipeline: Arc::new(|p| p.detect_135_deg_lines()),
         },
         Bench {
             name: "laplace",
             original: Box::new(laplace),
-            pipeline: pipeline_to_fn(|p| p.laplace()),
+            pipeline: Arc::new(|p| p.laplace()),
         },
         Bench {
             name: "edge_one",
             original: Box::new(edge_one),
-            pipeline: pipeline_to_fn(|p| p.edge_one()),
+            pipeline: Arc::new(|p| p.edge_one()),
         },
         Bench {
             name: "emboss",
             original: Box::new(emboss),
-            pipeline: pipeline_to_fn(|p| p.emboss()),
+            pipeline: Arc::new(|p| p.emboss()),
         },
         Bench {
             name: "sobel_horizontal",
             original: Box::new(sobel_horizontal),
-            pipeline: pipeline_to_fn(|p| p.sobel_horizontal()),
+            pipeline: Arc::new(|p| p.sobel_horizontal()),
         },
         Bench {
             name: "prewitt_horizontal",
             original: Box::new(prewitt_horizontal),
-            pipeline: pipeline_to_fn(|p| p.prewitt_horizontal()),
+            pipeline: Arc::new(|p| p.prewitt_horizontal()),
         },
         Bench {
             name: "sobel_vertical",
             original: Box::new(sobel_vertical),
-            pipeline: pipeline_to_fn(|p| p.sobel_vertical()),
+            pipeline: Arc::new(|p| p.sobel_vertical()),
         },
         Bench {
             name: "sobel_global",
             original: Box::new(sobel_global),
-            pipeline: pipeline_to_fn(|p| p.sobel_global()),
+            pipeline: Arc::new(|p| p.sobel_global()),
         },
         Bench {
             name: "long_spatial_chain",
@@ -127,7 +124,7 @@ fn run_pipeline_spatial_benchmarks() {
                 prewitt_horizontal(img);
                 identity(img);
             }),
-            pipeline: pipeline_to_fn(|p| {
+            pipeline: Arc::new(|p| {
                 p.box_blur()
                     .sharpen()
                     .edge_detection()
