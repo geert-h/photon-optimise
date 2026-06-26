@@ -108,18 +108,27 @@ fn validate_and_measure(
         let mut img_clone = img.clone();
         let start = Date::now();
         (bench.original)(&mut img_clone);
-        sum += (Date::now() - start);
+        sum += Date::now() - start;
     }
     let original_ms = sum / config.iterations as f64;
 
     // Timing stage 2: full pipeline (conversion + ops)
     // Not timed, warm-up
-    let mut sum = 0.0;
     for _ in 0..config.warmups {
-        let mut img_clone = img.clone();
+        let img_clone = img.clone();
+        std::hint::black_box(
+            (bench.pipeline)(Pipeline::from_photon_image(&img_clone)).finish(),
+        );
+    }
+
+    let mut sum = 0.0;
+    for _ in 0..config.iterations {
+        let img_clone = img.clone();
         let start = Date::now();
-        img_clone = (bench.pipeline)(Pipeline::from_photon_image(&img_clone)).finish();
-        sum += (Date::now() - start);
+        std::hint::black_box(
+            (bench.pipeline)(Pipeline::from_photon_image(&img_clone)).finish(),
+        );
+        sum += Date::now() - start;
     }
     let pipeline_ms = sum / config.iterations as f64;
 
@@ -129,12 +138,14 @@ fn validate_and_measure(
         let converted_clone = converted.clone();
         converted_clone.finish_to_planar();
     }
+
     let mut sum = 0.0;
+    let input_planar = Pipeline::from_photon_image(img).finish_to_planar();
     for _ in 0..config.iterations {
-        let converted_clone = converted.clone();
+        let pipeline = Pipeline::from_planar_image(input_planar.clone());
         let start = Date::now();
-        converted_clone.finish_to_planar();
-        sum += (Date::now() - start);
+        std::hint::black_box((bench.pipeline)(pipeline).finish_to_planar());
+        sum += Date::now() - start;
     }
     let isolated_ms = sum / config.iterations as f64;
 

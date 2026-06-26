@@ -38,6 +38,17 @@ impl Pipeline {
         }
     }
 
+    pub fn from_planar_image(img: PlanarImage) -> Self {
+        Pipeline {
+            image: img,
+            scratch: None,
+            f32_scratch: None,
+            #[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]
+            i16_scratch: None,
+            pending: Vec::new(),
+        }
+    }
+
     // This function assumes that the dimensions of the image never change inside the pipeline.
     // If we want to be able to change the dimensions of the image inside the pipeline,
     // then this function must be changed to validate whether the size is still the same for the scratch image
