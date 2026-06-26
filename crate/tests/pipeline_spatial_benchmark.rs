@@ -8,7 +8,8 @@ use common::*;
 use photon_rs::conv::{
     box_blur, detect_135_deg_lines, detect_45_deg_lines, detect_horizontal_lines,
     detect_vertical_lines, edge_detection, edge_one, emboss, identity, laplace,
-    noise_reduction, prewitt_horizontal, sharpen, sobel_horizontal, sobel_vertical,
+    noise_reduction, prewitt_horizontal, sharpen, sobel_global, sobel_horizontal,
+    sobel_vertical,
 };
 use wasm_bindgen_test::*;
 
@@ -102,6 +103,11 @@ fn run_pipeline_spatial_benchmarks() {
             pipeline: pipeline_to_fn(|p| p.sobel_vertical()),
         },
         Bench {
+            name: "sobel_global",
+            original: Box::new(sobel_global),
+            pipeline: pipeline_to_fn(|p| p.sobel_global()),
+        },
+        Bench {
             name: "long_spatial_chain",
             original: Box::new(|img| {
                 box_blur(img);
@@ -109,6 +115,7 @@ fn run_pipeline_spatial_benchmarks() {
                 edge_detection(img);
                 sobel_horizontal(img);
                 sobel_vertical(img);
+                sobel_global(img);
                 laplace(img);
                 emboss(img);
                 noise_reduction(img);
@@ -126,6 +133,7 @@ fn run_pipeline_spatial_benchmarks() {
                     .edge_detection()
                     .sobel_horizontal()
                     .sobel_vertical()
+                    .sobel_global()
                     .laplace()
                     .emboss()
                     .noise_reduction()
