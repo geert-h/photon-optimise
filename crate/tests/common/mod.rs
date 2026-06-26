@@ -162,10 +162,10 @@ fn validate_and_measure(
     let pipeline_ms = sum / config.iterations as f64;
 
     // Timing stage 3: isolated (convert once and time ops only)
-    let converted = (bench.pipeline)(Pipeline::from_photon_image(img));
+    let input_planar = Pipeline::from_photon_image(img).finish_to_planar();
     for _ in 0..config.warmups {
-        let converted_clone = converted.clone();
-        converted_clone.finish_to_planar();
+        let pipeline = Pipeline::from_planar_image(input_planar.clone());
+        std::hint::black_box((bench.pipeline)(pipeline).finish_to_planar());
     }
 
     let mut sum = 0.0;
